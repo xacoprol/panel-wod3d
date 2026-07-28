@@ -6,8 +6,8 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /**
- * PrismaNeonHTTP usa el driver HTTP de Neon (Vercel-safe).
- * Nota: no soporta interactive $transaction; las queries van secuenciales.
+ * PrismaNeonHTTP: driver HTTP de Neon (Vercel-safe, sin TCP :5432).
+ * No soporta $transaction interactiva.
  */
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -15,7 +15,10 @@ function createPrismaClient() {
     return new PrismaClient();
   }
 
-  const adapter = new PrismaNeonHTTP(connectionString);
+  const adapter = new PrismaNeonHTTP(connectionString, {
+    arrayMode: true,
+    fullResults: true,
+  });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],

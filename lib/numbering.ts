@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 export type NumberAllocation = {
   seriesId: string;
@@ -8,8 +8,8 @@ export type NumberAllocation = {
   fullNumber: string;
 };
 
-/** Cliente Prisma (HTTP Neon no soporta $transaction interactiva). */
-type Db = PrismaClient;
+/** Acepta PrismaClient o el cliente de una $transaction. */
+type Db = PrismaClient | Prisma.TransactionClient;
 
 function buildFullNumber(
   prefix: string,
