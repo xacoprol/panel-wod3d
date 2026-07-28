@@ -1,43 +1,21 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
-
-/**
- * Neon + Vercel: no usar TCP :5432 desde serverless (falla con P1001).
- * El adapter habla por WebSocket (443) con el pooler.
- */
-neonConfig.webSocketConstructor = ws;
-neonConfig.pipelineConnect = false;
+import { PrismaNeonHttp } from "@prisma/adapter-neon";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function withNeonParams(url: string): string {
-  try {
-    const u = new URL(url);
-    if (!u.searchParams.has("sslmode")) u.searchParams.set("sslmode", "require");
-    // PgBouncer / pooler de Neon
-    if (!u.searchParams.has("pgbouncer")) u.searchParams.set("pgbouncer", "true");
-    if (!u.searchParams.has("connect_timeout")) {
-      u.searchParams.set("connect_timeout", "30");
-    }
-    return u.toString();
-  } catch {
-    return url;
-  }
-}
-
+/**
+ * PrismaNeonHttp usa el driver HTTP de Neon (Vercel-safe).
+ * Nota: no soporta interactive $transaction; las que haya deben ser secuenciales.
+ */
 function createPrismaClient() {
-  const raw = process.env.DATABASE_URL;
-  if (!raw) {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
     return new PrismaClient();
   }
 
-  const connectionString = withNeonParams(raw);
-  const adapter = new PrismaNeon({ connectionString });
-
+  const adapter = new PrismaNeonHttp(connectionString);
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],

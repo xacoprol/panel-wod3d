@@ -134,45 +134,43 @@ export async function updateRecurring(
     data.endDate
   );
 
-  await prisma.$transaction(async (tx) => {
-    await tx.recurringLine.deleteMany({ where: { templateId: id } });
-    await tx.recurringInvoiceTemplate.update({
-      where: { id },
-      data: {
-        name: data.name,
-        clientId: data.clientId,
-        seriesId: data.seriesId,
-        frequency: data.frequency,
-        intervalCount: data.intervalCount,
-        dayOfMonth: data.dayOfMonth,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        notes: data.notes,
-        paymentMethod: data.paymentMethod,
-        bankIban: data.bankIban,
-        irpfRate: data.irpfRate,
-        vatOperationType: data.vatOperationType,
-        cashAccounting: data.cashAccounting,
-        operationKey: data.operationKey,
-        operationKey347: data.operationKey347,
-        nextRunDate,
-        lines: {
-          create: data.lines.map((l, i) => ({
-            sortOrder: i,
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            vatRate:
-              data.vatOperationType === "EXENTA" ||
-              data.vatOperationType === "INTRACOMUNITARIA" ||
-              data.vatOperationType === "EXPORTACION"
-                ? 0
-                : l.vatRate,
-            discountPct: l.discountPct,
-          })),
-        },
+  await prisma.recurringLine.deleteMany({ where: { templateId: id } });
+  await prisma.recurringInvoiceTemplate.update({
+    where: { id },
+    data: {
+      name: data.name,
+      clientId: data.clientId,
+      seriesId: data.seriesId,
+      frequency: data.frequency,
+      intervalCount: data.intervalCount,
+      dayOfMonth: data.dayOfMonth,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      notes: data.notes,
+      paymentMethod: data.paymentMethod,
+      bankIban: data.bankIban,
+      irpfRate: data.irpfRate,
+      vatOperationType: data.vatOperationType,
+      cashAccounting: data.cashAccounting,
+      operationKey: data.operationKey,
+      operationKey347: data.operationKey347,
+      nextRunDate,
+      lines: {
+        create: data.lines.map((l, i) => ({
+          sortOrder: i,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          vatRate:
+            data.vatOperationType === "EXENTA" ||
+            data.vatOperationType === "INTRACOMUNITARIA" ||
+            data.vatOperationType === "EXPORTACION"
+              ? 0
+              : l.vatRate,
+          discountPct: l.discountPct,
+        })),
       },
-    });
+    },
   });
 
   revalidatePath("/recurring");

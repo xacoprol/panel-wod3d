@@ -31,47 +31,45 @@ export async function createInvoice(
   const issueDate = new Date(String(formData.get("issueDate")));
   const dueRaw = String(formData.get("dueDate") ?? "");
 
-  const invoice = await prisma.$transaction(async (tx) => {
-    const num = await allocateInvoiceNumber(tx, seriesId);
-    const lastInSeries = await tx.invoice.findFirst({
-      where: { seriesId: num.seriesId },
-      orderBy: { number: "desc" },
-    });
+  const num = await allocateInvoiceNumber(prisma, seriesId);
+  const lastInSeries = await prisma.invoice.findFirst({
+    where: { seriesId: num.seriesId },
+    orderBy: { number: "desc" },
+  });
 
-    return tx.invoice.create({
-      data: {
-        seriesId: num.seriesId,
-        seriesPrefix: num.seriesPrefix,
-        number: num.number,
-        fullNumber: num.fullNumber,
-        clientId,
-        issueDate,
-        dueDate: dueRaw ? new Date(dueRaw) : null,
-        status: "PENDIENTE",
-        paymentMethod:
-          String(formData.get("paymentMethod") ?? "").trim() || null,
-        notes: String(formData.get("notes") ?? "").trim() || null,
-        subtotal: totals.subtotal,
-        vatAmount: totals.vatAmount,
-        irpfRate: totals.irpfRate,
-        irpfAmount: totals.irpfAmount,
-        total: totals.total,
-        previousInvoiceId: lastInSeries?.id ?? null,
-        lines: {
-          create: totals.lines.map((l) => ({
-            sortOrder: l.sortOrder,
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            vatRate: l.vatRate,
-            discountPct: l.discountPct,
-            lineSubtotal: l.lineSubtotal,
-            lineVat: l.lineVat,
-            lineTotal: l.lineTotal,
-          })),
-        },
+  const invoice = await prisma.invoice.create({
+    data: {
+      seriesId: num.seriesId,
+      seriesPrefix: num.seriesPrefix,
+      number: num.number,
+      fullNumber: num.fullNumber,
+      clientId,
+      issueDate,
+      dueDate: dueRaw ? new Date(dueRaw) : null,
+      status: "PENDIENTE",
+      paymentMethod:
+        String(formData.get("paymentMethod") ?? "").trim() || null,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+      subtotal: totals.subtotal,
+      vatAmount: totals.vatAmount,
+      irpfRate: totals.irpfRate,
+      irpfAmount: totals.irpfAmount,
+      total: totals.total,
+      previousInvoiceId: lastInSeries?.id ?? null,
+      lines: {
+        create: totals.lines.map((l) => ({
+          sortOrder: l.sortOrder,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          vatRate: l.vatRate,
+          discountPct: l.discountPct,
+          lineSubtotal: l.lineSubtotal,
+          lineVat: l.lineVat,
+          lineTotal: l.lineTotal,
+        })),
       },
-    });
+    },
   });
 
   revalidatePath("/invoices");
@@ -101,38 +99,36 @@ export async function updateInvoice(
   const dueRaw = String(formData.get("dueDate") ?? "");
   const status = String(formData.get("status") ?? existing.status);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.invoiceLine.deleteMany({ where: { invoiceId: id } });
-    await tx.invoice.update({
-      where: { id },
-      data: {
-        clientId,
-        issueDate,
-        dueDate: dueRaw ? new Date(dueRaw) : null,
-        status,
-        paymentMethod:
-          String(formData.get("paymentMethod") ?? "").trim() || null,
-        notes: String(formData.get("notes") ?? "").trim() || null,
-        subtotal: totals.subtotal,
-        vatAmount: totals.vatAmount,
-        irpfRate: totals.irpfRate,
-        irpfAmount: totals.irpfAmount,
-        total: totals.total,
-        lines: {
-          create: totals.lines.map((l) => ({
-            sortOrder: l.sortOrder,
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            vatRate: l.vatRate,
-            discountPct: l.discountPct,
-            lineSubtotal: l.lineSubtotal,
-            lineVat: l.lineVat,
-            lineTotal: l.lineTotal,
-          })),
-        },
+  await prisma.invoiceLine.deleteMany({ where: { invoiceId: id } });
+  await prisma.invoice.update({
+    where: { id },
+    data: {
+      clientId,
+      issueDate,
+      dueDate: dueRaw ? new Date(dueRaw) : null,
+      status,
+      paymentMethod:
+        String(formData.get("paymentMethod") ?? "").trim() || null,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+      subtotal: totals.subtotal,
+      vatAmount: totals.vatAmount,
+      irpfRate: totals.irpfRate,
+      irpfAmount: totals.irpfAmount,
+      total: totals.total,
+      lines: {
+        create: totals.lines.map((l) => ({
+          sortOrder: l.sortOrder,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          vatRate: l.vatRate,
+          discountPct: l.discountPct,
+          lineSubtotal: l.lineSubtotal,
+          lineVat: l.lineVat,
+          lineTotal: l.lineTotal,
+        })),
       },
-    });
+    },
   });
 
   revalidatePath("/invoices");
@@ -167,16 +163,13 @@ export async function deleteInvoice(id: string) {
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice) throw new Error("Factura no encontrada");
 
-  await prisma.$transaction(async (tx) => {
-    // Romper cadena Veri*Factu / previousInvoice
-    await tx.invoice.updateMany({
-      where: { previousInvoiceId: id },
-      data: { previousInvoiceId: null },
-    });
-
-    await tx.invoice.delete({ where: { id } });
-    await syncInvoiceSeriesNextNumber(tx, invoice.seriesId);
+  await prisma.invoice.updateMany({
+    where: { previousInvoiceId: id },
+    data: { previousInvoiceId: null },
   });
+
+  await prisma.invoice.delete({ where: { id } });
+  await syncInvoiceSeriesNextNumber(prisma, invoice.seriesId);
 
   revalidatePath("/invoices");
   revalidatePath("/dashboard");

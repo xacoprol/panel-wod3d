@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import type { Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 
 export type NumberAllocation = {
   seriesId: string;
@@ -8,7 +8,8 @@ export type NumberAllocation = {
   fullNumber: string;
 };
 
-type Tx = Prisma.TransactionClient;
+/** Cliente Prisma (HTTP Neon no soporta $transaction interactiva). */
+type Db = PrismaClient;
 
 function buildFullNumber(
   prefix: string,
@@ -28,7 +29,7 @@ function buildFullNumber(
  * Debe ejecutarse dentro de una transacción Prisma.
  */
 export async function allocateInvoiceNumber(
-  tx: Tx,
+  tx: Db,
   seriesId?: string
 ): Promise<{
   seriesId: string;
@@ -79,7 +80,7 @@ export async function allocateInvoiceNumber(
  * Así, si borras la última, el correlativo vuelve atrás y se reutiliza.
  */
 export async function syncInvoiceSeriesNextNumber(
-  tx: Tx,
+  tx: Db,
   seriesId: string
 ): Promise<number> {
   const agg = await tx.invoice.aggregate({
@@ -95,7 +96,7 @@ export async function syncInvoiceSeriesNextNumber(
 }
 
 export async function allocateQuoteNumber(
-  tx: Tx,
+  tx: Db,
   seriesId?: string
 ): Promise<{
   seriesId: string;

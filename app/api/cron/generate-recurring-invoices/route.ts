@@ -76,73 +76,69 @@ async function runGeneration(asOf: Date) {
         const due = new Date(issueDate);
         due.setDate(due.getDate() + 30);
 
-        const invoice = await prisma.$transaction(async (tx) => {
-          const num = await allocateInvoiceNumber(tx, tpl.seriesId);
-          const lastInSeries = await tx.invoice.findFirst({
-            where: { seriesId: num.seriesId },
-            orderBy: { number: "desc" },
-          });
+        const num = await allocateInvoiceNumber(prisma, tpl.seriesId);
+        const lastInSeries = await prisma.invoice.findFirst({
+          where: { seriesId: num.seriesId },
+          orderBy: { number: "desc" },
+        });
 
-          const inv = await tx.invoice.create({
-            data: {
-              seriesId: num.seriesId,
-              seriesPrefix: num.seriesPrefix,
-              number: num.number,
-              fullNumber: num.fullNumber,
-              clientId: tpl.clientId,
-              issueDate,
-              dueDate: due,
-              status: "PENDIENTE",
-              paymentMethod: tpl.paymentMethod,
-              notes: tpl.notes,
-              subtotal: totals.subtotal,
-              vatAmount: totals.vatAmount,
-              irpfRate: totals.irpfRate,
-              irpfAmount: totals.irpfAmount,
-              total: totals.total,
-              vatOperationType: tpl.vatOperationType,
-              cashAccounting: tpl.cashAccounting,
-              operationKey: tpl.operationKey,
-              operationKey347: tpl.operationKey347,
-              recurringTemplateId: tpl.id,
-              previousInvoiceId: lastInSeries?.id ?? null,
-              lines: {
-                create: totals.lines.map((l) => ({
-                  sortOrder: l.sortOrder,
-                  description: l.description,
-                  quantity: l.quantity,
-                  unitPrice: l.unitPrice,
-                  vatRate: l.vatRate,
-                  discountPct: l.discountPct,
-                  lineSubtotal: l.lineSubtotal,
-                  lineVat: l.lineVat,
-                  lineTotal: l.lineTotal,
-                })),
-              },
-            },
-          });
-
-          const nextRun = advanceDate(
+        const invoice = await prisma.invoice.create({
+          data: {
+            seriesId: num.seriesId,
+            seriesPrefix: num.seriesPrefix,
+            number: num.number,
+            fullNumber: num.fullNumber,
+            clientId: tpl.clientId,
             issueDate,
-            tpl.frequency as Frequency,
-            tpl.dayOfMonth,
-            tpl.intervalCount
-          );
-          let status = tpl.status;
-          if (tpl.endDate && dayKey(nextRun) > dayKey(tpl.endDate)) {
-            status = "FINALIZADA";
-          }
-
-          await tx.recurringInvoiceTemplate.update({
-            where: { id: tpl.id },
-            data: {
-              lastRunAt: new Date(),
-              nextRunDate: status === "FINALIZADA" ? null : nextRun,
-              status,
+            dueDate: due,
+            status: "PENDIENTE",
+            paymentMethod: tpl.paymentMethod,
+            notes: tpl.notes,
+            subtotal: totals.subtotal,
+            vatAmount: totals.vatAmount,
+            irpfRate: totals.irpfRate,
+            irpfAmount: totals.irpfAmount,
+            total: totals.total,
+            vatOperationType: tpl.vatOperationType,
+            cashAccounting: tpl.cashAccounting,
+            operationKey: tpl.operationKey,
+            operationKey347: tpl.operationKey347,
+            recurringTemplateId: tpl.id,
+            previousInvoiceId: lastInSeries?.id ?? null,
+            lines: {
+              create: totals.lines.map((l) => ({
+                sortOrder: l.sortOrder,
+                description: l.description,
+                quantity: l.quantity,
+                unitPrice: l.unitPrice,
+                vatRate: l.vatRate,
+                discountPct: l.discountPct,
+                lineSubtotal: l.lineSubtotal,
+                lineVat: l.lineVat,
+                lineTotal: l.lineTotal,
+              })),
             },
-          });
+          },
+        });
 
-          return inv;
+        const nextRun = advanceDate(
+          issueDate,
+          tpl.frequency as Frequency,
+          tpl.dayOfMonth,
+          tpl.intervalCount
+        );
+        let status = tpl.status;
+        if (tpl.endDate && dayKey(nextRun) > dayKey(tpl.endDate)) {
+          status = "FINALIZADA";
+        }
+
+        await prisma.recurringInvoiceTemplate.update({
+          where: { id: tpl.id },
+          data: {
+            lastRunAt: new Date(),
+            nextRunDate: status === "FINALIZADA" ? null : nextRun,
+            status,
+          },
         });
 
         invoicesCreated++;

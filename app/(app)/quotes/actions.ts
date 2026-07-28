@@ -34,38 +34,36 @@ export async function createQuote(
   const validUntilRaw = String(formData.get("validUntil") ?? "");
   const status = String(formData.get("status") ?? "BORRADOR");
 
-  const quote = await prisma.$transaction(async (tx) => {
-    const num = await allocateQuoteNumber(tx);
-    return tx.quote.create({
-      data: {
-        seriesId: num.seriesId,
-        seriesPrefix: num.seriesPrefix,
-        number: num.number,
-        fullNumber: num.fullNumber,
-        clientId,
-        issueDate,
-        validUntil: validUntilRaw ? new Date(validUntilRaw) : null,
-        status,
-        notes: String(formData.get("notes") ?? "").trim() || null,
-        conditions: String(formData.get("conditions") ?? "").trim() || null,
-        subtotal: totals.subtotal,
-        vatAmount: totals.vatAmount,
-        total: totals.total,
-        lines: {
-          create: totals.lines.map((l) => ({
-            sortOrder: l.sortOrder,
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            vatRate: l.vatRate,
-            discountPct: l.discountPct,
-            lineSubtotal: l.lineSubtotal,
-            lineVat: l.lineVat,
-            lineTotal: l.lineTotal,
-          })),
-        },
+  const num = await allocateQuoteNumber(prisma);
+  const quote = await prisma.quote.create({
+    data: {
+      seriesId: num.seriesId,
+      seriesPrefix: num.seriesPrefix,
+      number: num.number,
+      fullNumber: num.fullNumber,
+      clientId,
+      issueDate,
+      validUntil: validUntilRaw ? new Date(validUntilRaw) : null,
+      status,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+      conditions: String(formData.get("conditions") ?? "").trim() || null,
+      subtotal: totals.subtotal,
+      vatAmount: totals.vatAmount,
+      total: totals.total,
+      lines: {
+        create: totals.lines.map((l) => ({
+          sortOrder: l.sortOrder,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          vatRate: l.vatRate,
+          discountPct: l.discountPct,
+          lineSubtotal: l.lineSubtotal,
+          lineVat: l.lineVat,
+          lineTotal: l.lineTotal,
+        })),
       },
-    });
+    },
   });
 
   revalidatePath("/quotes");
@@ -96,35 +94,33 @@ export async function updateQuote(
   const validUntilRaw = String(formData.get("validUntil") ?? "");
   const status = String(formData.get("status") ?? existing.status);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.quoteLine.deleteMany({ where: { quoteId: id } });
-    await tx.quote.update({
-      where: { id },
-      data: {
-        clientId,
-        issueDate,
-        validUntil: validUntilRaw ? new Date(validUntilRaw) : null,
-        status,
-        notes: String(formData.get("notes") ?? "").trim() || null,
-        conditions: String(formData.get("conditions") ?? "").trim() || null,
-        subtotal: totals.subtotal,
-        vatAmount: totals.vatAmount,
-        total: totals.total,
-        lines: {
-          create: totals.lines.map((l) => ({
-            sortOrder: l.sortOrder,
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            vatRate: l.vatRate,
-            discountPct: l.discountPct,
-            lineSubtotal: l.lineSubtotal,
-            lineVat: l.lineVat,
-            lineTotal: l.lineTotal,
-          })),
-        },
+  await prisma.quoteLine.deleteMany({ where: { quoteId: id } });
+  await prisma.quote.update({
+    where: { id },
+    data: {
+      clientId,
+      issueDate,
+      validUntil: validUntilRaw ? new Date(validUntilRaw) : null,
+      status,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+      conditions: String(formData.get("conditions") ?? "").trim() || null,
+      subtotal: totals.subtotal,
+      vatAmount: totals.vatAmount,
+      total: totals.total,
+      lines: {
+        create: totals.lines.map((l) => ({
+          sortOrder: l.sortOrder,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          vatRate: l.vatRate,
+          discountPct: l.discountPct,
+          lineSubtotal: l.lineSubtotal,
+          lineVat: l.lineVat,
+          lineTotal: l.lineTotal,
+        })),
       },
-    });
+    },
   });
 
   revalidatePath("/quotes");
@@ -159,53 +155,49 @@ export async function convertQuoteToInvoice(quoteId: string) {
   const due = new Date(quote.issueDate);
   due.setDate(due.getDate() + 30);
 
-  const invoice = await prisma.$transaction(async (tx) => {
-    const num = await allocateInvoiceNumber(tx);
-    const lastInSeries = await tx.invoice.findFirst({
-      where: { seriesId: num.seriesId, status: { not: "ANULADA" } },
-      orderBy: { number: "desc" },
-    });
+  const num = await allocateInvoiceNumber(prisma);
+  const lastInSeries = await prisma.invoice.findFirst({
+    where: { seriesId: num.seriesId, status: { not: "ANULADA" } },
+    orderBy: { number: "desc" },
+  });
 
-    const inv = await tx.invoice.create({
-      data: {
-        seriesId: num.seriesId,
-        seriesPrefix: num.seriesPrefix,
-        number: num.number,
-        fullNumber: num.fullNumber,
-        clientId: quote.clientId,
-        issueDate: new Date(),
-        dueDate: due,
-        status: "PENDIENTE",
-        notes: quote.notes,
-        subtotal: totals.subtotal,
-        vatAmount: totals.vatAmount,
-        irpfRate: totals.irpfRate,
-        irpfAmount: totals.irpfAmount,
-        total: totals.total,
-        quoteId: quote.id,
-        previousInvoiceId: lastInSeries?.id ?? null,
-        lines: {
-          create: totals.lines.map((l) => ({
-            sortOrder: l.sortOrder,
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            vatRate: l.vatRate,
-            discountPct: l.discountPct,
-            lineSubtotal: l.lineSubtotal,
-            lineVat: l.lineVat,
-            lineTotal: l.lineTotal,
-          })),
-        },
+  const invoice = await prisma.invoice.create({
+    data: {
+      seriesId: num.seriesId,
+      seriesPrefix: num.seriesPrefix,
+      number: num.number,
+      fullNumber: num.fullNumber,
+      clientId: quote.clientId,
+      issueDate: new Date(),
+      dueDate: due,
+      status: "PENDIENTE",
+      notes: quote.notes,
+      subtotal: totals.subtotal,
+      vatAmount: totals.vatAmount,
+      irpfRate: totals.irpfRate,
+      irpfAmount: totals.irpfAmount,
+      total: totals.total,
+      quoteId: quote.id,
+      previousInvoiceId: lastInSeries?.id ?? null,
+      lines: {
+        create: totals.lines.map((l) => ({
+          sortOrder: l.sortOrder,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          vatRate: l.vatRate,
+          discountPct: l.discountPct,
+          lineSubtotal: l.lineSubtotal,
+          lineVat: l.lineVat,
+          lineTotal: l.lineTotal,
+        })),
       },
-    });
+    },
+  });
 
-    await tx.quote.update({
-      where: { id: quoteId },
-      data: { status: "ACEPTADO" },
-    });
-
-    return inv;
+  await prisma.quote.update({
+    where: { id: quoteId },
+    data: { status: "ACEPTADO" },
   });
 
   revalidatePath("/quotes");

@@ -1,13 +1,20 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { prisma } from "./prisma";
 import { z } from "zod";
+import { neonSql, wakeNeon } from "./neon-http";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+type AuthUserRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  passwordHash: string;
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -21,9 +28,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const parsed = credentialsSchema.safeParse(credentials);
           if (!parsed.success) return null;
 
-          const user = await prisma.user.findUnique({
-            where: { email: parsed.data.email.toLowerCase() },
-          });
+          const email = parsed.data.email.toLowerCase();
+
+          // HTTP a Neon (no TCP :5432) — estable en Vercel serverless
+          await wakeNeon();
+          const sql = neonSql();
+          const rows = (await sql`
+            SELECT id, email, name, "passwordHash"
+            FROM "User"
+            WHERE email = ${email}
+            LIMIT 1
+          `) as AuthUserRow[];
+
+          const user = rows[0];
           if (!user) return null;
 
           const valid = await bcrypt.compare(
