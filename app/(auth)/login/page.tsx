@@ -49,9 +49,9 @@ function LoginForm() {
           name="email"
           type="email"
           required
-          defaultValue="admin@factura.local"
           className="input"
           autoComplete="email"
+          placeholder="tu@email.com"
         />
       </div>
       <div>
@@ -63,7 +63,6 @@ function LoginForm() {
           name="password"
           type="password"
           required
-          defaultValue="admin123"
           className="input"
           autoComplete="current-password"
         />
