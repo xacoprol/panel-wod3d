@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 /** Fecha local a mediodía para evitar desfases UTC en SQLite/Date */
 function localDate(iso: string): Date {

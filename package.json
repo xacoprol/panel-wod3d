@@ -9,10 +9,12 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "tsx prisma/run-seed.ts",
     "db:reset": "prisma migrate reset"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@prisma/adapter-neon": "^7.9.1",
     "@prisma/client": "^6.19.3",
     "@react-pdf/renderer": "^4.5.1",
     "bcryptjs": "^3.0.3",
@@ -23,6 +25,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.10.1",
+    "ws": "^8.21.1",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
