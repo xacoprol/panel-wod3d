@@ -1,0 +1,632 @@
+import React from "react";
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  Image,
+  StyleSheet,
+} from "@react-pdf/renderer";
+
+export type PdfParty = {
+  name: string;
+  nif: string;
+  countryCode?: string | null;
+  addressStreet: string;
+  addressCity: string;
+  addressProvince: string;
+  addressZip: string;
+  addressCountry: string;
+  email?: string | null;
+  phone?: string | null;
+};
+
+export type PdfLine = {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  vatRate: number;
+  discountPct: number;
+  lineSubtotal: number;
+};
+
+export type InvoicePdfProps = {
+  title: string;
+  number: string;
+  issueDate: string;
+  dueDate?: string | null;
+  status?: string;
+  issuer: PdfParty;
+  client: PdfParty;
+  lines: PdfLine[];
+  subtotal: number;
+  vatAmount: number;
+  irpfRate?: number;
+  irpfAmount?: number;
+  total: number;
+  notes?: string | null;
+  paymentMethod?: string | null;
+  bankIban?: string | null;
+  bankName?: string | null;
+  logoUrl?: string | null;
+  brandName?: string | null;
+  specialDiscountPct?: number;
+  specialDiscountAmount?: number;
+  earlyPaymentDiscountPct?: number;
+  earlyPaymentDiscountAmount?: number;
+};
+
+/* Paleta orgánica: grises cálidos y suaves */
+const INK = "#3f3c38";
+const MUTED = "#948f86";
+const SOFT = "#f5f2ed";
+const SOFT_MID = "#ebe6de";
+const LINE = "#ddd6cc";
+const ACCENT_DEEP = "#a8a29a";
+const BRAND = "#9b8fc4";
+const R = 12; // radio general más orgánico
+
+const styles = StyleSheet.create({
+  page: {
+    paddingTop: 38,
+    paddingBottom: 52,
+    paddingHorizontal: 40,
+    fontSize: 9,
+    fontFamily: "Helvetica",
+    color: INK,
+    backgroundColor: "#fbfaf8",
+  },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  logoWrap: { width: 150 },
+  logoImg: { width: 130, height: 48, objectFit: "contain" },
+  brandText: {
+    fontSize: 26,
+    fontFamily: "Helvetica-Bold",
+    color: BRAND,
+    letterSpacing: 0.5,
+  },
+  brandSub: {
+    fontSize: 7,
+    color: MUTED,
+    marginTop: 3,
+    letterSpacing: 0.4,
+  },
+  issuerBlock: { maxWidth: 250, alignItems: "flex-end" },
+  issuerName: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 10,
+    textAlign: "right",
+    marginBottom: 4,
+    color: INK,
+  },
+  issuerLine: {
+    fontSize: 8,
+    color: MUTED,
+    textAlign: "right",
+    lineHeight: 1.4,
+  },
+
+  docBar: {
+    flexDirection: "row",
+    marginBottom: 14,
+    borderRadius: R,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: LINE,
+  },
+  docLabel: {
+    backgroundColor: ACCENT_DEEP,
+    color: "#faf8f5",
+    fontFamily: "Helvetica-Bold",
+    fontSize: 9,
+    letterSpacing: 0.6,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    minWidth: 118,
+    textAlign: "center",
+  },
+  docNumber: {
+    flex: 1,
+    backgroundColor: SOFT,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 10,
+    color: INK,
+  },
+
+  metaRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+    gap: 10,
+  },
+  metaCol: { width: 128 },
+  fieldBox: {
+    borderWidth: 1,
+    borderColor: LINE,
+    borderRadius: R,
+    marginBottom: 8,
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+  },
+  fieldLabel: {
+    backgroundColor: SOFT,
+    fontSize: 7,
+    color: MUTED,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontFamily: "Helvetica-Bold",
+    letterSpacing: 0.3,
+  },
+  fieldValue: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 9,
+    color: INK,
+  },
+  clientBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: LINE,
+    borderRadius: R,
+    overflow: "hidden",
+    minHeight: 76,
+    backgroundColor: "#ffffff",
+  },
+  clientBody: { paddingHorizontal: 12, paddingVertical: 9 },
+  clientName: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 10,
+    marginBottom: 3,
+    color: INK,
+  },
+  clientLine: { fontSize: 9, lineHeight: 1.4, color: MUTED },
+
+  table: {
+    marginBottom: 16,
+    borderRadius: R,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: LINE,
+    backgroundColor: "#ffffff",
+  },
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: SOFT,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: LINE,
+  },
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    minHeight: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: SOFT_MID,
+  },
+  tableRowLast: {
+    flexDirection: "row",
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    minHeight: 24,
+    borderBottomWidth: 0,
+  },
+  th: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 7.5,
+    color: MUTED,
+    letterSpacing: 0.3,
+  },
+  colDesc: { flex: 3.2, paddingRight: 4 },
+  colQty: { width: 55, textAlign: "right" },
+  colPrice: { width: 70, textAlign: "right" },
+  colDisc: { width: 60, textAlign: "right" },
+  colTotal: { width: 70, textAlign: "right" },
+
+  bottomRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 2,
+  },
+  bottomLeft: { flex: 1.15 },
+  bottomRight: { width: 198 },
+
+  totalRow: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: LINE,
+    borderRadius: R,
+    overflow: "hidden",
+    marginBottom: 6,
+    backgroundColor: "#ffffff",
+  },
+  totalLabel: {
+    flex: 1,
+    backgroundColor: SOFT,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    color: MUTED,
+  },
+  totalValue: {
+    width: 78,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 9,
+    textAlign: "right",
+    color: INK,
+  },
+  totalFinalLabel: {
+    flex: 1,
+    backgroundColor: ACCENT_DEEP,
+    color: "#faf8f5",
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+  },
+  totalFinalValue: {
+    width: 78,
+    backgroundColor: SOFT_MID,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "right",
+    color: INK,
+  },
+
+  dualField: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: LINE,
+    borderRadius: R,
+    overflow: "hidden",
+    marginBottom: 6,
+    backgroundColor: "#ffffff",
+  },
+  dualLabel: {
+    width: 98,
+    backgroundColor: SOFT,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: MUTED,
+  },
+  dualPct: {
+    width: 48,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    fontSize: 8,
+    textAlign: "right",
+    borderLeftWidth: 1,
+    borderLeftColor: LINE,
+    color: INK,
+  },
+  dualAmt: {
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 8,
+    textAlign: "right",
+    borderLeftWidth: 1,
+    borderLeftColor: LINE,
+    color: INK,
+  },
+
+  obsBox: {
+    borderWidth: 1,
+    borderColor: LINE,
+    borderRadius: R,
+    overflow: "hidden",
+    marginTop: 2,
+    minHeight: 52,
+    backgroundColor: "#ffffff",
+  },
+  obsLabel: {
+    backgroundColor: SOFT,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: MUTED,
+    letterSpacing: 0.3,
+  },
+  obsBody: {
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    fontSize: 8,
+    lineHeight: 1.4,
+    color: INK,
+  },
+
+  footer: {
+    position: "absolute",
+    bottom: 24,
+    left: 40,
+    right: 40,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    fontSize: 7,
+    color: MUTED,
+  },
+});
+
+function num(n: number, digits = 2): string {
+  return new Intl.NumberFormat("es-ES", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(n || 0);
+}
+
+function formatClientTaxId(client: PdfParty): string {
+  const nif = (client.nif || "").trim();
+  const code = (client.countryCode || "").toUpperCase();
+  if (!nif) return "—";
+  if (
+    code &&
+    code !== "ES" &&
+    code !== "OTHER" &&
+    !nif.toUpperCase().startsWith(code)
+  ) {
+    return `${code}${nif}`;
+  }
+  return nif;
+}
+
+function primaryVatRate(lines: PdfLine[]): number {
+  if (!lines.length) return 0;
+  const rates = new Map<number, number>();
+  for (const l of lines) {
+    rates.set(l.vatRate, (rates.get(l.vatRate) ?? 0) + l.lineSubtotal);
+  }
+  let best = 0;
+  let bestBase = -1;
+  for (const [rate, base] of rates) {
+    if (base > bestBase) {
+      best = rate;
+      bestBase = base;
+    }
+  }
+  return best;
+}
+
+export function InvoicePdfDocument(props: InvoicePdfProps) {
+  const {
+    title,
+    number,
+    issueDate,
+    issuer,
+    client,
+    lines,
+    subtotal,
+    vatAmount,
+    irpfRate = 0,
+    irpfAmount = 0,
+    total,
+    notes,
+    paymentMethod,
+    bankIban,
+    bankName,
+    logoUrl,
+    brandName = "WOD3D",
+    specialDiscountPct = 0,
+    specialDiscountAmount = 0,
+    earlyPaymentDiscountPct = 0,
+    earlyPaymentDiscountAmount = 0,
+  } = props;
+
+  const vatRate = primaryVatRate(lines);
+  const totalLabel =
+    title.toUpperCase() === "FACTURA"
+      ? "Total Factura (€)"
+      : "Total Presupuesto (€)";
+
+  const issuerAddress = [
+    issuer.addressStreet,
+    `${issuer.addressZip} ${issuer.addressCity}${
+      issuer.addressProvince ? ` (${issuer.addressProvince})` : ""
+    } ${issuer.addressCountry}`.trim(),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const contactLine = [
+    issuer.phone ? `Tel. ${issuer.phone}` : null,
+    issuer.email || null,
+  ]
+    .filter(Boolean)
+    .join(" - ");
+
+  const clientAddressLines = [
+    client.addressStreet,
+    [client.addressZip, client.addressCity].filter(Boolean).join(" "),
+    client.addressCountry,
+  ].filter((l) => l && l !== "—");
+
+  const displayLines =
+    lines.length < 5
+      ? [
+          ...lines,
+          ...Array.from({ length: 5 - lines.length }).map(() => null),
+        ]
+      : lines;
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        <View style={styles.topRow}>
+          <View style={styles.logoWrap}>
+            {logoUrl ? (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={logoUrl} style={styles.logoImg} />
+            ) : (
+              <View>
+                <Text style={styles.brandText}>{brandName}</Text>
+                <Text style={styles.brandSub}>diseño · impresión 3D</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.issuerBlock}>
+            <Text style={styles.issuerName}>{issuer.name}</Text>
+            <Text style={styles.issuerLine}>{issuerAddress}</Text>
+            <Text style={styles.issuerLine}>C.I.F./N.I.F. {issuer.nif}</Text>
+            {contactLine ? (
+              <Text style={styles.issuerLine}>{contactLine}</Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.docBar}>
+          <Text style={styles.docLabel}>{title.toUpperCase()}</Text>
+          <Text style={styles.docNumber}>{number}</Text>
+        </View>
+
+        <View style={styles.metaRow}>
+          <View style={styles.metaCol}>
+            <View style={styles.fieldBox}>
+              <Text style={styles.fieldLabel}>C.I.F. / N.I.F.</Text>
+              <Text style={styles.fieldValue}>{formatClientTaxId(client)}</Text>
+            </View>
+            <View style={styles.fieldBox}>
+              <Text style={styles.fieldLabel}>Fecha</Text>
+              <Text style={styles.fieldValue}>{issueDate}</Text>
+            </View>
+          </View>
+          <View style={styles.clientBox}>
+            <Text style={styles.fieldLabel}>Cliente</Text>
+            <View style={styles.clientBody}>
+              <Text style={styles.clientName}>{client.name}</Text>
+              {clientAddressLines.map((line, i) => (
+                <Text key={i} style={styles.clientLine}>
+                  {line}
+                </Text>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.colDesc, styles.th]}>Descripción</Text>
+            <Text style={[styles.colQty, styles.th]}>Cantidad</Text>
+            <Text style={[styles.colPrice, styles.th]}>Precio</Text>
+            <Text style={[styles.colDisc, styles.th]}>Descuento</Text>
+            <Text style={[styles.colTotal, styles.th]}>Total</Text>
+          </View>
+          {displayLines.map((l, i) => {
+            const isLast = i === displayLines.length - 1;
+            const rowStyle = isLast ? styles.tableRowLast : styles.tableRow;
+            if (!l) {
+              return (
+                <View key={`empty-${i}`} style={rowStyle}>
+                  <Text style={styles.colDesc}> </Text>
+                  <Text style={styles.colQty}> </Text>
+                  <Text style={styles.colPrice}> </Text>
+                  <Text style={styles.colDisc}> </Text>
+                  <Text style={styles.colTotal}> </Text>
+                </View>
+              );
+            }
+            return (
+              <View key={i} style={rowStyle} wrap={false}>
+                <Text style={styles.colDesc}>{l.description}</Text>
+                <Text style={styles.colQty}>{num(l.quantity)}</Text>
+                <Text style={styles.colPrice}>{num(l.unitPrice)}</Text>
+                <Text style={styles.colDisc}>{num(l.discountPct)}%</Text>
+                <Text style={styles.colTotal}>{num(l.lineSubtotal)}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.bottomRow}>
+          <View style={styles.bottomLeft}>
+            <View style={styles.dualField}>
+              <Text style={styles.dualLabel}>Dto. Especial</Text>
+              <Text style={styles.dualPct}>{num(specialDiscountPct)}%</Text>
+              <Text style={styles.dualAmt}>{num(specialDiscountAmount)}</Text>
+            </View>
+            <View style={styles.dualField}>
+              <Text style={styles.dualLabel}>Dto. Pronto Pago</Text>
+              <Text style={styles.dualPct}>
+                {num(earlyPaymentDiscountPct)}%
+              </Text>
+              <Text style={styles.dualAmt}>
+                {num(earlyPaymentDiscountAmount)}
+              </Text>
+            </View>
+            <View style={styles.fieldBox}>
+              <Text style={styles.fieldLabel}>Forma de pago</Text>
+              <Text style={styles.fieldValue}>
+                {paymentMethod ||
+                  (bankIban
+                    ? `Transferencia${bankName ? ` (${bankName})` : ""}`
+                    : "—")}
+              </Text>
+            </View>
+            <View style={styles.obsBox}>
+              <Text style={styles.obsLabel}>Observaciones</Text>
+              <Text style={styles.obsBody}>
+                {[
+                  notes,
+                  bankIban && paymentMethod?.toLowerCase().includes("transf")
+                    ? `IBAN: ${bankIban}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join("\n") || " "}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.bottomRight}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Base Imponible</Text>
+              <Text style={styles.totalValue}>{num(subtotal)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                Total I.V.A. ({num(vatRate)}%)
+              </Text>
+              <Text style={styles.totalValue}>{num(vatAmount)}</Text>
+            </View>
+            {irpfAmount > 0 ? (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  I.R.P.F. (−{num(irpfRate)}%)
+                </Text>
+                <Text style={styles.totalValue}>−{num(irpfAmount)}</Text>
+              </View>
+            ) : null}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalFinalLabel}>{totalLabel}</Text>
+              <Text style={styles.totalFinalValue}>{num(total)}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.footer} fixed>
+          <Text>
+            De acuerdo con la LOPD los datos serán de uso exclusivo de la
+            empresa.
+          </Text>
+          <Text
+            render={({ pageNumber, totalPages }) =>
+              `PÁGINA ${pageNumber} de ${totalPages}`
+            }
+          />
+        </View>
+      </Page>
+    </Document>
+  );
+}

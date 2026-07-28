@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f3efe6;
+  --bg-elevated: #faf7f0;
+  --ink: #1a2332;
+  --ink-muted: #5c6b7a;
+  --line: #d4cbb8;
+  --accent: #0d6e6e;
+  --accent-hover: #0a5858;
+  --accent-soft: #e0f0ef;
+  --danger: #b33a3a;
+  --warning: #b87a1a;
+  --success: #2d6a4f;
+  --sidebar: #1a2332;
+  --sidebar-text: #e8e4db;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-text: var(--sidebar-text);
+  --font-sans: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.bg-paper {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 50%),
+    radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--ink) 4%, transparent), transparent 45%);
+}
+
+.input {
+  @apply w-full rounded-md border border-line bg-bg-elevated px-3 py-2 text-sm text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20;
+}
+
+.label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-ink-muted;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-md border border-line bg-bg-elevated px-4 py-2 text-sm font-medium text-ink transition hover:bg-line/40 disabled:opacity-50;
+}
+
+.btn-danger {
+  @apply inline-flex items-center justify-center gap-2 rounded-md bg-danger px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-ink-muted transition hover:bg-line/30 hover:text-ink disabled:opacity-50;
+}
+
+.card-panel {
+  @apply rounded-lg border border-line bg-bg-elevated;
+}
+
+.badge {
+  @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-medium;
+}

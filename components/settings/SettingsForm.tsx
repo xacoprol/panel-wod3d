@@ -1,0 +1,402 @@
+"use client";
+
+import { useActionState } from "react";
+import type { CompanySettings, InvoiceSeries, QuoteSeries } from "@prisma/client";
+import {
+  updateSettings,
+  createInvoiceSeries,
+  type SettingsState,
+} from "@/app/(app)/settings/actions";
+import { THEME_FIELDS, DEFAULT_THEME } from "@/lib/theme";
+
+type Props = {
+  settings: CompanySettings;
+  invoiceSeries: InvoiceSeries[];
+  quoteSeries: QuoteSeries[];
+};
+
+export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
+  const [state, formAction, pending] = useActionState<SettingsState, FormData>(
+    updateSettings,
+    {}
+  );
+
+  return (
+    <div className="space-y-10">
+      <form action={formAction} className="space-y-6">
+        {state.error && (
+          <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+            {state.error}
+          </p>
+        )}
+        {state.success && (
+          <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
+            Ajustes guardados
+          </p>
+        )}
+
+        <section className="card-panel space-y-4 p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            Datos fiscales del emisor
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="name">
+                Nombre / Razón social
+              </label>
+              <input
+                id="name"
+                name="name"
+                className="input"
+                defaultValue={settings.name}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="nif">
+                NIF / CIF
+              </label>
+              <input
+                id="nif"
+                name="nif"
+                className="input font-mono"
+                defaultValue={settings.nif}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="email">
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                className="input"
+                defaultValue={settings.email}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="addressStreet">
+                Calle
+              </label>
+              <input
+                id="addressStreet"
+                name="addressStreet"
+                className="input"
+                defaultValue={settings.addressStreet}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="addressCity">
+                Ciudad
+              </label>
+              <input
+                id="addressCity"
+                name="addressCity"
+                className="input"
+                defaultValue={settings.addressCity}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="addressProvince">
+                Provincia
+              </label>
+              <input
+                id="addressProvince"
+                name="addressProvince"
+                className="input"
+                defaultValue={settings.addressProvince}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="addressZip">
+                C.P.
+              </label>
+              <input
+                id="addressZip"
+                name="addressZip"
+                className="input"
+                defaultValue={settings.addressZip}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="addressCountry">
+                País
+              </label>
+              <input
+                id="addressCountry"
+                name="addressCountry"
+                className="input"
+                defaultValue={settings.addressCountry}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="phone">
+                Teléfono
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                className="input"
+                defaultValue={settings.phone}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="logoUrl">
+                URL del logo
+              </label>
+              <input
+                id="logoUrl"
+                name="logoUrl"
+                className="input"
+                defaultValue={settings.logoUrl ?? ""}
+                placeholder="https://…"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="bankName">
+                Banco
+              </label>
+              <input
+                id="bankName"
+                name="bankName"
+                className="input"
+                defaultValue={settings.bankName ?? ""}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="bankIban">
+                IBAN
+              </label>
+              <input
+                id="bankIban"
+                name="bankIban"
+                className="input font-mono"
+                defaultValue={settings.bankIban ?? ""}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="card-panel space-y-4 p-6">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+              Apariencia · UX
+            </h2>
+            <p className="mt-1 text-xs text-ink-muted">
+              Colores de la interfaz VEXO. Se aplican al guardar.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {THEME_FIELDS.map((field) => {
+              const value =
+                (settings[field.key] as string | undefined) ??
+                DEFAULT_THEME[field.key];
+              return (
+                <div key={field.key}>
+                  <label className="label" htmlFor={field.key}>
+                    {field.label}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      id={`${field.key}-picker`}
+                      className="h-10 w-12 cursor-pointer rounded-md border border-line bg-bg-elevated p-1"
+                      defaultValue={value}
+                      onChange={(e) => {
+                        const text = document.getElementById(
+                          field.key
+                        ) as HTMLInputElement | null;
+                        if (text) text.value = e.target.value;
+                      }}
+                    />
+                    <input
+                      id={field.key}
+                      name={field.key}
+                      className="input font-mono uppercase"
+                      defaultValue={value}
+                      pattern="^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$"
+                      onChange={(e) => {
+                        const picker = document.getElementById(
+                          `${field.key}-picker`
+                        ) as HTMLInputElement | null;
+                        if (picker && /^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+                          picker.value = e.target.value;
+                        }
+                      }}
+                    />
+                  </div>
+                  {field.hint && (
+                    <p className="mt-1 text-[11px] text-ink-muted">{field.hint}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <span className="badge bg-accent text-white">Acento</span>
+            <span className="badge bg-accent-soft text-accent">Suave</span>
+            <span className="badge border border-line bg-bg-elevated text-ink">
+              Superficie
+            </span>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => {
+                for (const field of THEME_FIELDS) {
+                  const def = DEFAULT_THEME[field.key];
+                  const text = document.getElementById(
+                    field.key
+                  ) as HTMLInputElement | null;
+                  const picker = document.getElementById(
+                    `${field.key}-picker`
+                  ) as HTMLInputElement | null;
+                  if (text) text.value = def;
+                  if (picker) picker.value = def;
+                }
+              }}
+            >
+              Restaurar colores por defecto
+            </button>
+          </div>
+        </section>
+
+        <section className="card-panel space-y-4 p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            Impuestos por defecto
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="defaultVatRate">
+                IVA por defecto (%)
+              </label>
+              <select
+                id="defaultVatRate"
+                name="defaultVatRate"
+                className="input"
+                defaultValue={settings.defaultVatRate}
+              >
+                {[21, 10, 4, 0].map((r) => (
+                  <option key={r} value={r}>
+                    {r}%
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="defaultIrpfRate">
+                IRPF por defecto (%)
+              </label>
+              <select
+                id="defaultIrpfRate"
+                name="defaultIrpfRate"
+                className="input"
+                defaultValue={settings.defaultIrpfRate}
+              >
+                {[0, 7, 15].map((r) => (
+                  <option key={r} value={r}>
+                    {r}%
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="card-panel space-y-4 p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            Plantilla de email
+          </h2>
+          <p className="text-xs text-ink-muted">
+            Variables: {"{{number}}"}, {"{{company}}"}
+          </p>
+          <div>
+            <label className="label" htmlFor="emailSubject">
+              Asunto
+            </label>
+            <input
+              id="emailSubject"
+              name="emailSubject"
+              className="input"
+              defaultValue={settings.emailSubject}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="emailBody">
+              Cuerpo
+            </label>
+            <textarea
+              id="emailBody"
+              name="emailBody"
+              rows={4}
+              className="input"
+              defaultValue={settings.emailBody}
+            />
+          </div>
+        </section>
+
+        <button type="submit" disabled={pending} className="btn-primary">
+          {pending ? "Guardando…" : "Guardar ajustes"}
+        </button>
+      </form>
+
+      <section className="card-panel space-y-4 p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+          Series de numeración
+        </h2>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-sm font-medium">Facturas</h3>
+            <ul className="mb-4 space-y-1 text-sm">
+              {invoiceSeries.map((s) => (
+                <li key={s.id} className="flex justify-between font-mono text-xs">
+                  <span>
+                    {s.prefix}
+                    {s.year ? `${s.year}-` : ""}
+                    {String(s.nextNumber).padStart(s.padLength, "0")}
+                    {s.isDefault ? " ★" : ""}
+                  </span>
+                  <span className="text-ink-muted">{s.name}</span>
+                </li>
+              ))}
+            </ul>
+            <form action={createInvoiceSeries} className="flex flex-wrap gap-2">
+              <input
+                name="prefix"
+                className="input w-24"
+                placeholder="B-"
+                required
+              />
+              <input
+                name="name"
+                className="input flex-1"
+                placeholder="Nombre serie"
+                required
+              />
+              <label className="flex items-center gap-1 text-xs text-ink-muted">
+                <input type="checkbox" name="useYear" defaultChecked /> Año
+              </label>
+              <button type="submit" className="btn-secondary">
+                Añadir
+              </button>
+            </form>
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-medium">Presupuestos</h3>
+            <ul className="space-y-1 text-sm">
+              {quoteSeries.map((s) => (
+                <li key={s.id} className="flex justify-between font-mono text-xs">
+                  <span>
+                    {s.prefix}
+                    {s.year ? `${s.year}-` : ""}
+                    {String(s.nextNumber).padStart(s.padLength, "0")}
+                  </span>
+                  <span className="text-ink-muted">{s.name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}

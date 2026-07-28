@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─── Company / settings ─────────────────────────────────────────────────────
+
+model CompanySettings {
+  id              String   @id @default(cuid())
+  name            String   @default("")
+  nif             String   @default("")
+  addressStreet   String   @default("")
+  addressCity     String   @default("")
+  addressProvince String   @default("")
+  addressZip      String   @default("")
+  addressCountry  String   @default("España")
+  email           String   @default("")
+  phone           String   @default("")
+  logoUrl         String?
+  defaultVatRate  Float    @default(21)
+  defaultIrpfRate Float    @default(15)
+  emailSubject    String   @default("Documento {{number}} de {{company}}")
+  emailBody       String   @default("Adjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}")
+  bankIban        String?
+  bankName        String?
+
+  // UX theme (CSS variables)
+  themeBg           String @default("#f3efe6")
+  themeBgElevated   String @default("#faf7f0")
+  themeInk          String @default("#1a2332")
+  themeInkMuted     String @default("#5c6b7a")
+  themeLine         String @default("#d4cbb8")
+  themeAccent       String @default("#0d6e6e")
+  themeAccentHover  String @default("#0a5858")
+  themeAccentSoft   String @default("#e0f0ef")
+  themeSidebar      String @default("#1a2332")
+  themeSidebarText  String @default("#e8e4db")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ─── Numbering series ───────────────────────────────────────────────────────
+
+model InvoiceSeries {
+  id          String    @id @default(cuid())
+  prefix      String    @unique // e.g. "A-", "B-"
+  name        String
+  nextNumber  Int       @default(1)
+  year        Int? // optional year segment; null = continuous
+  padLength   Int       @default(3)
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  invoices    Invoice[]
+}
+
+model QuoteSeries {
+  id         String  @id @default(cuid())
+  prefix     String  @unique // e.g. "PRE-"
+  name       String
+  nextNumber Int     @default(1)
+  year       Int?
+  padLength  Int     @default(3)
+  isDefault  Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  quotes     Quote[]
+}
+
+// ─── Clients ────────────────────────────────────────────────────────────────
+
+model Client {
+  id              String   @id @default(cuid())
+  name            String
+  nif             String // free-text tax id; validated loosely by countryCode
+  countryCode     String   @default("ES") // ISO 3166-1 alpha-2 (ES, PT, …)
+  addressStreet   String
+  addressCity     String
+  addressProvince String
+  addressZip      String
+  addressCountry  String   @default("España")
+  email           String?
+  phone           String?
+  contactPerson   String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  quotes              Quote[]
+  invoices            Invoice[]
+  recurringTemplates  RecurringInvoiceTemplate[]
+
+  @@index([name])
+  @@index([nif])
+  @@index([countryCode])
+}
+
+// ─── Quotes ─────────────────────────────────────────────────────────────────
+
+model Quote {
+  id            String      @id @default(cuid())
+  seriesId      String
+  series        QuoteSeries @relation(fields: [seriesId], references: [id])
+  seriesPrefix  String
+  number        Int
+  fullNumber    String // e.g. PRE-2026-001
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id])
+  issueDate     DateTime
+  validUntil    DateTime?
+  status        String      @default("BORRADOR") // BORRADOR | ENVIADO | ACEPTADO | RECHAZADO | EXPIRADO
+  notes         String?
+  conditions    String?
+  subtotal      Decimal
+  vatAmount     Decimal
+  total         Decimal
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  lines    QuoteLine[]
+  invoice  Invoice?
+
+  @@unique([seriesId, number])
+  @@index([clientId])
+  @@index([status])
+  @@index([issueDate])
+}
+
+model QuoteLine {
+  id          String  @id @default(cuid())
+  quoteId     String
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  sortOrder   Int     @default(0)
+  description String
+  quantity    Decimal
+  unitPrice   Decimal
+  vatRate     Float   @default(21)
+  discountPct Float   @default(0)
+  lineSubtotal Decimal
+  lineVat      Decimal
+  lineTotal    Decimal
+}
+
+// ─── Invoices ───────────────────────────────────────────────────────────────
+
+model Invoice {
+  id            String        @id @default(cuid())
+  seriesId      String
+  series        InvoiceSeries @relation(fields: [seriesId], references: [id])
+  seriesPrefix  String
+  number        Int
+  fullNumber    String // e.g. A-2026-001
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id])
+  issueDate     DateTime
+  dueDate       DateTime?
+  status        String        @default("PENDIENTE") // PENDIENTE | PAGADA | VENCIDA | ANULADA
+  paymentMethod String?
+  notes         String?
+  subtotal      Decimal
+  vatAmount     Decimal
+  irpfRate      Float         @default(0)
+  irpfAmount    Decimal       @default(0)
+  total         Decimal
+
+  // Fiscal / IVA classification
+  vatOperationType String  @default("SUJETA") // SUJETA | EXENTA | INTRACOMUNITARIA | EXPORTACION
+  cashAccounting   Boolean @default(false) // criterio de caja
+  operationKey     String? // clave operación (ej. modelo 303)
+  operationKey347  String? // clave operación modelo 347
+
+  quoteId String? @unique
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+
+  recurringTemplateId String?
+  recurringTemplate   RecurringInvoiceTemplate? @relation(fields: [recurringTemplateId], references: [id])
+
+  // Veri*Factu readiness (nullable, unused for now)
+  verifactuHash     String?
+  verifactuSentAt   DateTime?
+  previousInvoiceId String?
+  previousInvoice   Invoice?  @relation("InvoiceChain", fields: [previousInvoiceId], references: [id])
+  nextInChain       Invoice[] @relation("InvoiceChain")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines InvoiceLine[]
+
+  @@unique([seriesId, number])
+  @@index([clientId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([recurringTemplateId])
+}
+
+model InvoiceLine {
+  id           String  @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sortOrder    Int     @default(0)
+  description  String
+  quantity     Decimal
+  unitPrice    Decimal
+  vatRate      Float   @default(21)
+  discountPct  Float   @default(0)
+  lineSubtotal Decimal
+  lineVat      Decimal
+  lineTotal    Decimal
+}
+
+// ─── Recurring invoices ─────────────────────────────────────────────────────
+
+model RecurringInvoiceTemplate {
+  id           String    @id @default(cuid())
+  name         String
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id])
+  seriesId     String
+  frequency    String // MENSUAL | TRIMESTRAL | SEMESTRAL | ANUAL
+  intervalCount Int      @default(1) // repetir cada N unidades (ej. cada 1 año)
+  dayOfMonth   Int       @default(1)
+  startDate    DateTime
+  endDate      DateTime? // fechaHasta — opcional; plantillas largas OK (solo genera la debida en cada cron)
+  status       String    @default("ACTIVA") // ACTIVA | PAUSADA | FINALIZADA
+  notes        String?
+  paymentMethod String?
+  bankIban     String?
+  irpfRate     Float     @default(0)
+  vatOperationType String  @default("SUJETA") // SUJETA | EXENTA | INTRACOMUNITARIA | EXPORTACION
+  cashAccounting   Boolean @default(false)
+  operationKey     String?
+  operationKey347  String?
+  nextRunDate  DateTime? // única factura pendiente; no se pregeneran futuras
+  lastRunAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  lines    RecurringLine[]
+  invoices Invoice[]
+
+  @@index([status])
+  @@index([nextRunDate])
+  @@index([clientId])
+}
+
+model RecurringLine {
+  id           String                   @id @default(cuid())
+  templateId   String
+  template     RecurringInvoiceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  sortOrder    Int                      @default(0)
+  description  String
+  quantity     Decimal
+  unitPrice    Decimal
+  vatRate      Float                    @default(21)
+  discountPct  Float                    @default(0)
+}
+
+model CronRunLog {
+  id               String   @id @default(cuid())
+  startedAt        DateTime @default(now())
+  finishedAt       DateTime?
+  success          Boolean  @default(false)
+  templatesChecked Int      @default(0)
+  invoicesCreated  Int      @default(0)
+  details          String? // JSON string for SQLite/Postgres portability
+  error            String?
+}
