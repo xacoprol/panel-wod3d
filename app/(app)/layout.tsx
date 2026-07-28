@@ -3,17 +3,25 @@ import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { signOut } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   await requireAuth();
-  const settings = await prisma.companySettings.findFirst();
+  let companyName = "";
+  try {
+    const settings = await prisma.companySettings.findFirst();
+    companyName = settings?.name ?? "";
+  } catch {
+    companyName = "";
+  }
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar companyName={settings?.name ?? ""} />
+      <Sidebar companyName={companyName} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-end border-b border-line px-6 py-3">
           <form

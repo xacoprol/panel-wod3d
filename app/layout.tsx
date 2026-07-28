@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   description: "Gestión de clientes, presupuestos y facturas",
 };
 
+/** Evita prerender estático que exige DATABASE_URL en el build de Vercel */
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
