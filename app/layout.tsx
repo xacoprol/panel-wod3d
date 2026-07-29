@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { Providers } from "@/components/Providers";
 import { ThemeStyles } from "@/components/ThemeStyles";
+import { PwaRegister } from "@/components/PwaRegister";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -17,8 +18,33 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VEXO — Panel de facturación",
+  title: "Nexo — Panel de facturación",
   description: "Gestión de clientes, presupuestos y facturas",
+  applicationName: "Nexo",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Nexo",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7B2CFE",
+  colorScheme: "dark light",
 };
 
 /** Evita prerender estático que exige DATABASE_URL en el build de Vercel */
@@ -34,6 +60,7 @@ export default function RootLayout({
       <body className="min-h-full bg-paper antialiased">
         <ThemeStyles />
         <Providers>{children}</Providers>
+        <PwaRegister />
       </body>
     </html>
   );

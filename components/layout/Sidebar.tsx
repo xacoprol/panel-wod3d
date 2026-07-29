@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -18,10 +19,22 @@ export function Sidebar({ companyName }: { companyName: string }) {
   return (
     <aside className="flex w-56 shrink-0 flex-col bg-sidebar text-sidebar-text">
       <div className="border-b border-white/10 px-5 py-6">
-        <p className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight text-white">
-          VEXO
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <Image
+            src="/icons/icon-192.png"
+            alt="Nexo"
+            width={28}
+            height={28}
+            className="rounded-md"
+            priority
+          />
+          <p className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight text-white">
+            Nexo
+          </p>
+        </Link>
+        <p className="mt-2 truncate text-xs text-white/50">
+          {companyName || "Mi empresa"}
         </p>
-        <p className="mt-1 truncate text-xs text-white/50">{companyName || "Mi empresa"}</p>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-3">
         {NAV.map((item) => {
@@ -43,7 +56,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
         })}
       </nav>
       <div className="border-t border-white/10 p-3 text-xs text-white/40">
-        VEXO
+        Nexo
       </div>
     </aside>
   );

@@ -31,12 +31,21 @@ function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="card-panel w-full max-w-md space-y-5 p-8 shadow-sm">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">VEXO</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Accede a tu panel de facturación
-        </p>
-      </div>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <img
+            src="/icons/icon-192.png"
+            alt="Nexo"
+            width={56}
+            height={56}
+            className="rounded-xl"
+          />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">Nexo</h1>
+            <p className="mt-1 text-sm text-ink-muted">
+              Accede a tu panel de facturación
+            </p>
+          </div>
+        </div>
       {error && (
         <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
       )}
