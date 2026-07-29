@@ -33,7 +33,7 @@ export default async function EditRecurringPage({
           ← {template.name}
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          Editar plantilla
+          Editar
         </h1>
       </div>
       <div className="card-panel p-6">

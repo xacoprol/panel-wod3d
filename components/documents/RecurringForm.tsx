@@ -76,7 +76,7 @@ export function RecurringForm({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="sm:col-span-2">
           <label className="label" htmlFor="name">
-            Nombre de la plantilla
+            Nombre
           </label>
           <input
             id="name"
@@ -291,11 +291,7 @@ export function RecurringForm({
       </div>
 
       <button type="submit" disabled={pending} className="btn-primary">
-        {pending
-          ? "Guardando…"
-          : template
-            ? "Guardar plantilla"
-            : "Crear plantilla"}
+        {pending ? "Guardando…" : template ? "Guardar" : "Crear"}
       </button>
     </form>
   );

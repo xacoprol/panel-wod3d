@@ -119,7 +119,7 @@ export default async function DashboardPage() {
           </div>
           <ul className="space-y-3 text-sm">
             {upcoming.length === 0 ? (
-              <li className="text-ink-muted">No hay plantillas activas</li>
+              <li className="text-ink-muted">No hay periódicas activas</li>
             ) : (
               upcoming.map((t) => (
                 <li key={t.id} className="flex justify-between gap-2 border-b border-line/50 pb-2">

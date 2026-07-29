@@ -40,7 +40,7 @@ export default async function RecurringPage({
             Facturas periódicas
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Plantillas y generación automática vía cron
+            Generación automática vía cron
           </p>
         </div>
         <Link href="/recurring/new" className="btn-primary">
@@ -64,7 +64,7 @@ export default async function RecurringPage({
             {templates.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-ink-muted">
-                  Sin plantillas.{" "}
+                  Sin facturas periódicas.{" "}
                   <Link href="/recurring/new" className="text-accent underline">
                     Crear una
                   </Link>
@@ -120,7 +120,7 @@ export default async function RecurringPage({
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Inicio</th>
                 <th className="px-4 py-2 text-left font-medium">Resultado</th>
-                <th className="px-4 py-2 text-right font-medium">Plantillas</th>
+                <th className="px-4 py-2 text-right font-medium">Revisadas</th>
                 <th className="px-4 py-2 text-right font-medium">Facturas</th>
               </tr>
             </thead>

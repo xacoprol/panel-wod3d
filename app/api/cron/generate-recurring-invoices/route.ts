@@ -105,21 +105,25 @@ async function runGeneration(asOf: Date) {
             operationKey347: tpl.operationKey347,
             recurringTemplateId: tpl.id,
             previousInvoiceId: lastInSeries?.id ?? null,
-            lines: {
-              create: totals.lines.map((l) => ({
-                sortOrder: l.sortOrder,
-                description: l.description,
-                quantity: l.quantity,
-                unitPrice: l.unitPrice,
-                vatRate: l.vatRate,
-                discountPct: l.discountPct,
-                lineSubtotal: l.lineSubtotal,
-                lineVat: l.lineVat,
-                lineTotal: l.lineTotal,
-              })),
-            },
           },
         });
+
+        for (const l of totals.lines) {
+          await prisma.invoiceLine.create({
+            data: {
+              invoiceId: invoice.id,
+              sortOrder: l.sortOrder,
+              description: l.description,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              vatRate: l.vatRate,
+              discountPct: l.discountPct,
+              lineSubtotal: l.lineSubtotal,
+              lineVat: l.lineVat,
+              lineTotal: l.lineTotal,
+            },
+          });
+        }
 
         const nextRun = advanceDate(
           issueDate,

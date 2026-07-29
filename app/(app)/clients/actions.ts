@@ -82,7 +82,7 @@ export async function deleteClient(id: string) {
   ]);
   if (quotes + invoices + recurring > 0) {
     throw new Error(
-      "No se puede eliminar: el cliente tiene presupuestos, facturas o plantillas asociadas."
+      "No se puede eliminar: el cliente tiene presupuestos, facturas o periódicas asociadas."
     );
   }
   await prisma.client.delete({ where: { id } });
