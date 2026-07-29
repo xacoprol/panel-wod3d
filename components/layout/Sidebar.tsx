@@ -19,18 +19,15 @@ export function Sidebar({ companyName }: { companyName: string }) {
   return (
     <aside className="flex w-56 shrink-0 flex-col bg-sidebar text-sidebar-text">
       <div className="border-b border-white/10 px-5 py-6">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href="/dashboard" className="block">
           <Image
-            src="/icons/icon-192.png"
+            src="/brand/logo.png"
             alt="Nexo"
-            width={28}
-            height={28}
-            className="rounded-md"
+            width={160}
+            height={26}
+            className="h-7 w-auto object-contain"
             priority
           />
-          <p className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight text-white">
-            Nexo
-          </p>
         </Link>
         <p className="mt-2 truncate text-xs text-white/50">
           {companyName || "Mi empresa"}
