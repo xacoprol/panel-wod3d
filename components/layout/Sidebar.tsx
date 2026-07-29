@@ -9,7 +9,7 @@ const NAV = [
   { href: "/clients", label: "Clientes" },
   { href: "/quotes", label: "Presupuestos" },
   { href: "/invoices", label: "Facturas" },
-  { href: "/recurring", label: "Recurrentes" },
+  { href: "/recurring", label: "Periódicas" },
   { href: "/settings", label: "Ajustes" },
 ];
 

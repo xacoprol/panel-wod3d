@@ -112,7 +112,7 @@ export default async function DashboardPage() {
 
         <section className="card-panel p-5 lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Próximas recurrentes</h2>
+            <h2 className="text-sm font-semibold">Próximas periódicas</h2>
             <Link href="/recurring" className="text-xs text-accent hover:underline">
               Ver todas
             </Link>

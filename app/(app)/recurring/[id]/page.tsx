@@ -26,7 +26,7 @@ export default async function RecurringDetailPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/recurring" className="text-sm text-ink-muted hover:text-accent">
-            ← Recurrentes
+            ← Periódicas
           </Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">
             {template.name}
