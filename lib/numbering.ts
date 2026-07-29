@@ -77,17 +77,20 @@ export async function allocateInvoiceNumber(
 
 /**
  * Tras borrar una factura, recalcula nextNumber = max(número existente) + 1.
- * Así, si borras la última, el correlativo vuelve atrás y se reutiliza.
+ * Si era la última (o la única), el correlativo vuelve a ese número para reutilizarlo.
  */
 export async function syncInvoiceSeriesNextNumber(
   tx: Db,
-  seriesId: string
+  seriesId: string,
+  deletedNumber?: number
 ): Promise<number> {
   const agg = await tx.invoice.aggregate({
     where: { seriesId },
     _max: { number: true },
   });
-  const nextNumber = (agg._max.number ?? 0) + 1;
+  const maxExisting = agg._max.number;
+  const nextNumber =
+    (maxExisting ?? (deletedNumber != null ? deletedNumber - 1 : 0)) + 1;
   await tx.invoiceSeries.update({
     where: { id: seriesId },
     data: { nextNumber },

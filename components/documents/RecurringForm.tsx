@@ -15,7 +15,7 @@ import { VAT_OPERATION_TYPES } from "@/lib/recurring";
 
 type Props = {
   clients: { id: string; name: string }[];
-  series: { id: string; name: string; prefix: string }[];
+  series: { id: string; name: string; prefix: string; isDefault?: boolean }[];
   defaultVatRate?: number;
   defaultIrpfRate?: number;
   template?: {
@@ -115,7 +115,11 @@ export function RecurringForm({
             name="seriesId"
             className="input"
             required
-            defaultValue={template?.seriesId ?? series[0]?.id}
+            defaultValue={
+              template?.seriesId ??
+              series.find((s) => s.isDefault)?.id ??
+              series[0]?.id
+            }
           >
             {series.map((s) => (
               <option key={s.id} value={s.id}>

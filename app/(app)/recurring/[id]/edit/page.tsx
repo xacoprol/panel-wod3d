@@ -43,6 +43,7 @@ export default async function EditRecurringPage({
             id: s.id,
             name: s.name,
             prefix: s.prefix,
+            isDefault: s.isDefault,
           }))}
           defaultVatRate={settings?.defaultVatRate ?? 21}
           defaultIrpfRate={settings?.defaultIrpfRate ?? 15}

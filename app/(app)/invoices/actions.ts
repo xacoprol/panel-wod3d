@@ -182,7 +182,7 @@ export async function deleteInvoice(id: string) {
   });
 
   await prisma.invoice.delete({ where: { id } });
-  await syncInvoiceSeriesNextNumber(prisma, invoice.seriesId);
+  await syncInvoiceSeriesNextNumber(prisma, invoice.seriesId, invoice.number);
 
   revalidatePath("/invoices");
   revalidatePath("/dashboard");

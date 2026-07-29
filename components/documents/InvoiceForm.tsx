@@ -13,7 +13,13 @@ import {
 } from "@/app/(app)/invoices/actions";
 
 type ClientOption = { id: string; name: string };
-type SeriesOption = { id: string; name: string; prefix: string };
+type SeriesOption = {
+  id: string;
+  name: string;
+  prefix: string;
+  isDefault?: boolean;
+  nextNumberPreview?: string;
+};
 
 type InvoiceData = {
   id: string;
@@ -72,6 +78,12 @@ export function InvoiceForm({
   const [irpfRate, setIrpfRate] = useState(
     invoice?.irpfRate ?? defaultIrpfRate
   );
+  const defaultSeriesId =
+    series.find((s) => s.isDefault)?.id ?? series[0]?.id ?? "";
+  const [selectedSeriesId, setSelectedSeriesId] = useState(defaultSeriesId);
+  const selectedSeries = series.find((s) => s.id === selectedSeriesId);
+  const preview =
+    selectedSeries?.nextNumberPreview ?? nextNumberPreview;
 
   return (
     <form action={formAction} className="space-y-6">
@@ -91,7 +103,8 @@ export function InvoiceForm({
               id="seriesId"
               name="seriesId"
               className="input"
-              defaultValue={series.find((s) => s)?.id}
+              value={selectedSeriesId}
+              onChange={(e) => setSelectedSeriesId(e.target.value)}
             >
               {series.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -100,7 +113,7 @@ export function InvoiceForm({
               ))}
             </select>
             <p className="mt-1 font-mono text-xs text-ink-muted">
-              Próximo: {nextNumberPreview}
+              Próximo: {preview}
             </p>
           </div>
         )}

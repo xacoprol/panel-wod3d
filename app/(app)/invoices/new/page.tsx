@@ -9,15 +9,29 @@ export default async function NewInvoicePage({
   searchParams: Promise<{ clientId?: string }>;
 }) {
   const { clientId } = await searchParams;
-  const [clients, series, settings, nextNumber] = await Promise.all([
+  const [clients, series, settings] = await Promise.all([
     prisma.client.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
-    prisma.invoiceSeries.findMany({ orderBy: { prefix: "asc" } }),
+    prisma.invoiceSeries.findMany({
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    }),
     prisma.companySettings.findFirst(),
-    previewNextInvoiceNumber(),
   ]);
+
+  const seriesOptions = await Promise.all(
+    series.map(async (s) => ({
+      id: s.id,
+      name: s.name,
+      prefix: s.prefix,
+      isDefault: s.isDefault,
+      nextNumberPreview: await previewNextInvoiceNumber(s.id),
+    }))
+  );
+
+  const defaultSeries =
+    seriesOptions.find((s) => s.isDefault) ?? seriesOptions[0];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -35,15 +49,11 @@ export default async function NewInvoicePage({
       <div className="card-panel p-6">
         <InvoiceForm
           clients={clients}
-          series={series.map((s) => ({
-            id: s.id,
-            name: s.name,
-            prefix: s.prefix,
-          }))}
+          series={seriesOptions}
           defaultClientId={clientId}
           defaultVatRate={settings?.defaultVatRate ?? 21}
           defaultIrpfRate={settings?.defaultIrpfRate ?? 15}
-          nextNumberPreview={nextNumber}
+          nextNumberPreview={defaultSeries?.nextNumberPreview}
         />
       </div>
     </div>

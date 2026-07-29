@@ -8,7 +8,9 @@ export default async function NewRecurringPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
-    prisma.invoiceSeries.findMany({ orderBy: { prefix: "asc" } }),
+    prisma.invoiceSeries.findMany({
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    }),
     prisma.companySettings.findFirst(),
   ]);
 
@@ -29,6 +31,7 @@ export default async function NewRecurringPage() {
             id: s.id,
             name: s.name,
             prefix: s.prefix,
+            isDefault: s.isDefault,
           }))}
           defaultVatRate={settings?.defaultVatRate ?? 21}
           defaultIrpfRate={settings?.defaultIrpfRate ?? 15}
