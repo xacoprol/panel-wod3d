@@ -2,8 +2,20 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { parsePage, paginationMeta } from "@/lib/pagination";
+import { Pagination } from "@/components/ui/Pagination";
 
-export default async function RecurringPage() {
+export default async function RecurringPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+
+  const total = await prisma.recurringInvoiceTemplate.count();
+  const meta = paginationMeta(total, page);
+
   const [templates, logs] = await Promise.all([
     prisma.recurringInvoiceTemplate.findMany({
       include: {
@@ -11,6 +23,8 @@ export default async function RecurringPage() {
         _count: { select: { invoices: true } },
       },
       orderBy: { nextRunDate: "asc" },
+      skip: meta.skip,
+      take: meta.take,
     }),
     prisma.cronRunLog.findMany({
       orderBy: { startedAt: "desc" },
@@ -58,9 +72,15 @@ export default async function RecurringPage() {
               </tr>
             ) : (
               templates.map((t) => (
-                <tr key={t.id} className="border-b border-line/60 hover:bg-accent-soft/40">
+                <tr
+                  key={t.id}
+                  className="relative border-b border-line/60 hover:bg-accent-soft/40"
+                >
                   <td className="px-4 py-3">
-                    <Link href={`/recurring/${t.id}`} className="hover:text-accent">
+                    <Link
+                      href={`/recurring/${t.id}`}
+                      className="after:absolute after:inset-0 hover:text-accent"
+                    >
                       {t.name}
                     </Link>
                   </td>
@@ -80,6 +100,14 @@ export default async function RecurringPage() {
             )}
           </tbody>
         </table>
+        <Pagination
+          basePath="/recurring"
+          params={{}}
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          pageSize={meta.pageSize}
+        />
       </div>
 
       <section className="space-y-3">

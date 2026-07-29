@@ -1,30 +1,42 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/calculations";
+import { parsePage, paginationMeta } from "@/lib/pagination";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { q } = await searchParams;
-  const query = q?.trim();
+  const sp = await searchParams;
+  const query = sp.q?.trim();
+  const page = parsePage(sp.page);
+
+  const where = query
+    ? {
+        OR: [
+          { name: { contains: query } },
+          { nif: { contains: query } },
+          { email: { contains: query } },
+        ],
+      }
+    : undefined;
+
+  const total = await prisma.client.count({ where });
+  const meta = paginationMeta(total, page);
 
   const clients = await prisma.client.findMany({
-    where: query
-      ? {
-          OR: [
-            { name: { contains: query } },
-            { nif: { contains: query } },
-            { email: { contains: query } },
-          ],
-        }
-      : undefined,
+    where,
     orderBy: { name: "asc" },
+    skip: meta.skip,
+    take: meta.take,
     include: {
       _count: { select: { quotes: true, invoices: true } },
     },
   });
+
+  const params = { q: query };
 
   return (
     <div className="space-y-6">
@@ -77,12 +89,12 @@ export default async function ClientsPage({
               clients.map((c) => (
                 <tr
                   key={c.id}
-                  className="border-b border-line/60 transition hover:bg-accent-soft/40"
+                  className="relative border-b border-line/60 transition hover:bg-accent-soft/40"
                 >
                   <td className="px-4 py-3">
                     <Link
                       href={`/clients/${c.id}`}
-                      className="font-medium text-ink hover:text-accent"
+                      className="font-medium text-ink after:absolute after:inset-0 hover:text-accent"
                     >
                       {c.name}
                     </Link>
@@ -100,6 +112,14 @@ export default async function ClientsPage({
             )}
           </tbody>
         </table>
+        <Pagination
+          basePath="/clients"
+          params={params}
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          pageSize={meta.pageSize}
+        />
       </div>
     </div>
   );

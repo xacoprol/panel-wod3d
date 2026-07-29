@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { parsePage, paginationMeta } from "@/lib/pagination";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default async function InvoicesPage({
   searchParams,
@@ -10,24 +12,35 @@ export default async function InvoicesPage({
     status?: string;
     from?: string;
     to?: string;
+    page?: string;
   }>;
 }) {
   const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const where = {
+    ...(sp.status ? { status: sp.status } : {}),
+    ...(sp.from || sp.to
+      ? {
+          issueDate: {
+            ...(sp.from ? { gte: new Date(sp.from) } : {}),
+            ...(sp.to ? { lte: new Date(sp.to) } : {}),
+          },
+        }
+      : {}),
+  };
+
+  const total = await prisma.invoice.count({ where });
+  const meta = paginationMeta(total, page);
+
   const invoices = await prisma.invoice.findMany({
-    where: {
-      ...(sp.status ? { status: sp.status } : {}),
-      ...(sp.from || sp.to
-        ? {
-            issueDate: {
-              ...(sp.from ? { gte: new Date(sp.from) } : {}),
-              ...(sp.to ? { lte: new Date(sp.to) } : {}),
-            },
-          }
-        : {}),
-    },
+    where,
     include: { client: true },
     orderBy: [{ issueDate: "desc" }, { number: "desc" }],
+    skip: meta.skip,
+    take: meta.take,
   });
+
+  const params = { status: sp.status, from: sp.from, to: sp.to };
 
   return (
     <div className="space-y-6">
@@ -92,11 +105,14 @@ export default async function InvoicesPage({
               </tr>
             ) : (
               invoices.map((inv) => (
-                <tr key={inv.id} className="border-b border-line/60 hover:bg-accent-soft/40">
+                <tr
+                  key={inv.id}
+                  className="relative border-b border-line/60 hover:bg-accent-soft/40"
+                >
                   <td className="px-4 py-3">
                     <Link
                       href={`/invoices/${inv.id}`}
-                      className="font-mono hover:text-accent"
+                      className="font-mono after:absolute after:inset-0 hover:text-accent"
                     >
                       {inv.fullNumber}
                     </Link>
@@ -119,6 +135,14 @@ export default async function InvoicesPage({
             )}
           </tbody>
         </table>
+        <Pagination
+          basePath="/invoices"
+          params={params}
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          pageSize={meta.pageSize}
+        />
       </div>
     </div>
   );

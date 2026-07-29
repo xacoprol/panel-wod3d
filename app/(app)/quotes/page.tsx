@@ -2,21 +2,33 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { parsePage, paginationMeta } from "@/lib/pagination";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default async function QuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; clientId?: string }>;
+  searchParams: Promise<{ status?: string; clientId?: string; page?: string }>;
 }) {
   const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const where = {
+    ...(sp.status ? { status: sp.status } : {}),
+    ...(sp.clientId ? { clientId: sp.clientId } : {}),
+  };
+
+  const total = await prisma.quote.count({ where });
+  const meta = paginationMeta(total, page);
+
   const quotes = await prisma.quote.findMany({
-    where: {
-      ...(sp.status ? { status: sp.status } : {}),
-      ...(sp.clientId ? { clientId: sp.clientId } : {}),
-    },
+    where,
     include: { client: true },
     orderBy: { issueDate: "desc" },
+    skip: meta.skip,
+    take: meta.take,
   });
+
+  const params = { status: sp.status, clientId: sp.clientId };
 
   return (
     <div className="space-y-6">
@@ -71,9 +83,15 @@ export default async function QuotesPage({
               </tr>
             ) : (
               quotes.map((q) => (
-                <tr key={q.id} className="border-b border-line/60 hover:bg-accent-soft/40">
+                <tr
+                  key={q.id}
+                  className="relative border-b border-line/60 hover:bg-accent-soft/40"
+                >
                   <td className="px-4 py-3">
-                    <Link href={`/quotes/${q.id}`} className="font-mono hover:text-accent">
+                    <Link
+                      href={`/quotes/${q.id}`}
+                      className="font-mono after:absolute after:inset-0 hover:text-accent"
+                    >
                       {q.fullNumber}
                     </Link>
                   </td>
@@ -90,6 +108,14 @@ export default async function QuotesPage({
             )}
           </tbody>
         </table>
+        <Pagination
+          basePath="/quotes"
+          params={params}
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          pageSize={meta.pageSize}
+        />
       </div>
     </div>
   );
