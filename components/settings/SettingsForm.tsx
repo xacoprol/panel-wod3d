@@ -8,6 +8,7 @@ import {
   type SettingsState,
 } from "@/app/(app)/settings/actions";
 import { THEME_FIELDS, DEFAULT_THEME } from "@/lib/theme";
+import { LogoUploadField } from "@/components/settings/LogoUploadField";
 
 type Props = {
   settings: CompanySettings;
@@ -40,7 +41,7 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
             Datos fiscales del emisor
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+            <div>
               <label className="label" htmlFor="name">
                 Nombre / Razón social
               </label>
@@ -49,6 +50,19 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
                 name="name"
                 className="input"
                 defaultValue={settings.name}
+                placeholder="Nombre fiscal"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="companyName">
+                Empresa
+              </label>
+              <input
+                id="companyName"
+                name="companyName"
+                className="input"
+                defaultValue={settings.companyName}
+                placeholder="Nombre comercial"
               />
             </div>
             <div>
@@ -140,18 +154,7 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
                 defaultValue={settings.phone}
               />
             </div>
-            <div>
-              <label className="label" htmlFor="logoUrl">
-                URL del logo
-              </label>
-              <input
-                id="logoUrl"
-                name="logoUrl"
-                className="input"
-                defaultValue={settings.logoUrl ?? ""}
-                placeholder="https://…"
-              />
-            </div>
+            <LogoUploadField currentLogoUrl={settings.logoUrl} />
             <div>
               <label className="label" htmlFor="bankName">
                 Banco

@@ -38,7 +38,7 @@ export async function GET(
       issueDate={formatDate(invoice.issueDate)}
       dueDate={formatDate(invoice.dueDate)}
       status={invoice.status}
-      brandName="WOD3D"
+      brandName={settings.companyName?.trim() || settings.name || "Empresa"}
       logoUrl={settings.logoUrl}
       issuer={{
         name: settings.name,

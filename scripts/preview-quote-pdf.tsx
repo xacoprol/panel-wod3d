@@ -19,7 +19,7 @@ async function main() {
       title="PRESUPUESTO"
       number={quote.fullNumber}
       issueDate={formatDate(quote.issueDate)}
-      brandName="WOD3D"
+      brandName={settings.companyName?.trim() || settings.name || "Empresa"}
       logoUrl={settings.logoUrl}
       issuer={{
         name: settings.name,

@@ -40,7 +40,7 @@ export async function GET(
       number={quote.fullNumber}
       issueDate={formatDate(quote.issueDate)}
       dueDate={formatDate(quote.validUntil)}
-      brandName="WOD3D"
+      brandName={settings.companyName?.trim() || settings.name || "Empresa"}
       logoUrl={settings.logoUrl}
       issuer={{
         name: settings.name,

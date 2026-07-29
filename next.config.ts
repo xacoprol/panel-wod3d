@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
     "@neondatabase/serverless",
     "ws",
   ],
+  experimental: {
+    // Logos en base64 vía server action (~1.5 MB archivo → ~2 MB body)
+    serverActions: {
+      bodySizeLimit: "3mb",
+    },
+  },
 };
 
 export default nextConfig;

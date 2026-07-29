@@ -8,6 +8,38 @@ import { DEFAULT_THEME, sanitizeHex } from "@/lib/theme";
 
 export type SettingsState = { error?: string; success?: boolean };
 
+const LOGO_MAX_BYTES = 1.5 * 1024 * 1024;
+const LOGO_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+
+async function resolveLogoUrl(
+  formData: FormData
+): Promise<{ logoUrl: string | null } | { error: string }> {
+  if (formData.get("removeLogo") === "1") {
+    return { logoUrl: null };
+  }
+
+  const file = formData.get("logoFile");
+  if (file instanceof File && file.size > 0) {
+    if (!LOGO_TYPES.has(file.type)) {
+      return { error: "El logo debe ser PNG, JPG, WebP o GIF." };
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      return { error: "El logo no puede superar 1,5 MB." };
+    }
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const base64 = buffer.toString("base64");
+    return { logoUrl: `data:${file.type};base64,${base64}` };
+  }
+
+  const existing = String(formData.get("logoUrl") ?? "").trim();
+  return { logoUrl: existing || null };
+}
+
 export async function updateSettings(
   _prev: SettingsState,
   formData: FormData
@@ -17,8 +49,12 @@ export async function updateSettings(
   const nifErr = taxIdErrorMessage(nif, "ES");
   if (nif && nifErr) return { error: nifErr };
 
+  const logoResult = await resolveLogoUrl(formData);
+  if ("error" in logoResult) return { error: logoResult.error };
+
   const data = {
     name: String(formData.get("name") ?? "").trim(),
+    companyName: String(formData.get("companyName") ?? "").trim(),
     nif,
     addressStreet: String(formData.get("addressStreet") ?? "").trim(),
     addressCity: String(formData.get("addressCity") ?? "").trim(),
@@ -27,7 +63,7 @@ export async function updateSettings(
     addressCountry: String(formData.get("addressCountry") ?? "España").trim(),
     email: String(formData.get("email") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim(),
-    logoUrl: String(formData.get("logoUrl") ?? "").trim() || null,
+    logoUrl: logoResult.logoUrl,
     defaultVatRate: parseFloat(String(formData.get("defaultVatRate") ?? "21")),
     defaultIrpfRate: parseFloat(String(formData.get("defaultIrpfRate") ?? "15")),
     emailSubject: String(formData.get("emailSubject") ?? "").trim(),

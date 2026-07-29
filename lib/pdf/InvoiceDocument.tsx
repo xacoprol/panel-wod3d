@@ -418,7 +418,7 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
     bankIban,
     bankName,
     logoUrl,
-    brandName = "WOD3D",
+    brandName = "Empresa",
     specialDiscountPct = 0,
     specialDiscountAmount = 0,
     earlyPaymentDiscountPct = 0,

@@ -56,6 +56,7 @@ async function main() {
     await prisma.companySettings.create({
       data: {
         name: "Mi Empresa S.L.",
+        companyName: "Mi Empresa",
         nif: "12345678Z",
         addressStreet: "Calle Ejemplo 1",
         addressCity: "Madrid",

@@ -14,7 +14,8 @@ export default async function AppLayout({
   let companyName = "";
   try {
     const settings = await prisma.companySettings.findFirst();
-    companyName = settings?.name ?? "";
+    companyName =
+      settings?.companyName?.trim() || settings?.name?.trim() || "";
   } catch {
     companyName = "";
   }

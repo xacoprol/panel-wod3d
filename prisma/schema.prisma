@@ -24,7 +24,8 @@ model User {
 
 model CompanySettings {
   id              String   @id @default(cuid())
-  name            String   @default("")
+  name            String   @default("") // Nombre / razón social (fiscal)
+  companyName     String   @default("") // Nombre comercial / empresa (p. ej. autónomos)
   nif             String   @default("")
   addressStreet   String   @default("")
   addressCity     String   @default("")
