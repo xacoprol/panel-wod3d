@@ -21,7 +21,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
       <div className="border-b border-white/10 px-5 py-6">
         <Link href="/dashboard" className="block">
           <Image
-            src="/brand/logo.png"
+            src="/brand/logo-on-dark.png"
             alt="Nexo"
             width={160}
             height={26}
