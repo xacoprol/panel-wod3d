@@ -15,6 +15,11 @@ export type CalculatedLine = LineInput & {
 
 export type DocumentTotals = {
   lines: CalculatedLine[];
+  /** Suma de bases de línea (antes del descuento general) */
+  grossSubtotal: number;
+  discountPct: number;
+  discountAmount: number;
+  /** Base imponible tras descuento general */
   subtotal: number;
   vatAmount: number;
   vatBreakdown: { rate: number; base: number; amount: number }[];
@@ -54,19 +59,35 @@ export function calculateLine(
   };
 }
 
+/**
+ * @param irpfRate retención IRPF %
+ * @param globalDiscountPct descuento general % sobre la base (tras dto. de línea)
+ */
 export function calculateDocument(
   lines: LineInput[],
-  irpfRate = 0
+  irpfRate = 0,
+  globalDiscountPct = 0
 ): DocumentTotals {
   const calculated = lines.map((l, i) => calculateLine(l, i));
-  const subtotal = round2(calculated.reduce((s, l) => s + l.lineSubtotal, 0));
-  const vatAmount = round2(calculated.reduce((s, l) => s + l.lineVat, 0));
+  const grossSubtotal = round2(
+    calculated.reduce((s, l) => s + l.lineSubtotal, 0)
+  );
+
+  const discountPct = Math.min(
+    100,
+    Math.max(0, Number(globalDiscountPct) || 0)
+  );
+  const discountAmount = round2((grossSubtotal * discountPct) / 100);
+  const factor = 1 - discountPct / 100;
+  const subtotal = round2(grossSubtotal - discountAmount);
 
   const byRate = new Map<number, { base: number; amount: number }>();
   for (const l of calculated) {
     const cur = byRate.get(l.vatRate) ?? { base: 0, amount: 0 };
-    cur.base = round2(cur.base + l.lineSubtotal);
-    cur.amount = round2(cur.amount + l.lineVat);
+    const base = round2(l.lineSubtotal * factor);
+    const amount = round2(base * (l.vatRate / 100));
+    cur.base = round2(cur.base + base);
+    cur.amount = round2(cur.amount + amount);
     byRate.set(l.vatRate, cur);
   }
 
@@ -74,12 +95,17 @@ export function calculateDocument(
     .map(([rate, v]) => ({ rate, base: v.base, amount: v.amount }))
     .sort((a, b) => b.rate - a.rate);
 
+  const vatAmount = round2(vatBreakdown.reduce((s, v) => s + v.amount, 0));
+
   const rate = Number(irpfRate) || 0;
   const irpfAmount = round2(subtotal * (rate / 100));
   const total = round2(subtotal + vatAmount - irpfAmount);
 
   return {
     lines: calculated,
+    grossSubtotal,
+    discountPct,
+    discountAmount,
     subtotal,
     vatAmount,
     vatBreakdown,

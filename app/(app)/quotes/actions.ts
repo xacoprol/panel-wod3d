@@ -53,7 +53,11 @@ export async function createQuote(
     if (!clientId) return { error: "Selecciona un cliente" };
     if (!lines.length) return { error: "Añade al menos una línea" };
 
-    const totals = calculateDocument(lines);
+    const discountPct = Math.min(
+      100,
+      Math.max(0, parseFloat(String(formData.get("discountPct") ?? "0")) || 0)
+    );
+    const totals = calculateDocument(lines, 0, discountPct);
     const issueDate = toDate(formData.get("issueDate"));
     const validUntilRaw = String(formData.get("validUntil") ?? "");
     const status = String(formData.get("status") ?? "BORRADOR");
@@ -71,6 +75,7 @@ export async function createQuote(
         status,
         notes: String(formData.get("notes") ?? "").trim() || null,
         conditions: String(formData.get("conditions") ?? "").trim() || null,
+        discountPct,
         subtotal: totals.subtotal,
         vatAmount: totals.vatAmount,
         total: totals.total,
@@ -107,7 +112,11 @@ export async function updateQuote(
     if (!clientId) return { error: "Selecciona un cliente" };
     if (!lines.length) return { error: "Añade al menos una línea" };
 
-    const totals = calculateDocument(lines);
+    const discountPct = Math.min(
+      100,
+      Math.max(0, parseFloat(String(formData.get("discountPct") ?? "0")) || 0)
+    );
+    const totals = calculateDocument(lines, 0, discountPct);
     const issueDate = toDate(formData.get("issueDate"));
     const validUntilRaw = String(formData.get("validUntil") ?? "");
     const status = String(formData.get("status") ?? existing.status);
@@ -122,6 +131,7 @@ export async function updateQuote(
         status,
         notes: String(formData.get("notes") ?? "").trim() || null,
         conditions: String(formData.get("conditions") ?? "").trim() || null,
+        discountPct,
         subtotal: totals.subtotal,
         vatAmount: totals.vatAmount,
         total: totals.total,
@@ -162,7 +172,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
     vatRate: l.vatRate,
     discountPct: l.discountPct,
   }));
-  const totals = calculateDocument(lineInputs, irpfRate);
+  const totals = calculateDocument(lineInputs, irpfRate, quote.discountPct);
 
   const due = new Date(quote.issueDate);
   due.setDate(due.getDate() + 30);

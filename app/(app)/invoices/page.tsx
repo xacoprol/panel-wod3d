@@ -4,6 +4,7 @@ import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
+import { DateInput } from "@/components/ui/DateInput";
 
 export default async function InvoicesPage({
   searchParams,
@@ -70,11 +71,11 @@ export default async function InvoicesPage({
         </div>
         <div>
           <label className="label">Desde</label>
-          <input type="date" name="from" defaultValue={sp.from ?? ""} className="input w-auto" />
+          <DateInput name="from" defaultValue={sp.from ?? ""} className="input w-auto" />
         </div>
         <div>
           <label className="label">Hasta</label>
-          <input type="date" name="to" defaultValue={sp.to ?? ""} className="input w-auto" />
+          <DateInput name="to" defaultValue={sp.to ?? ""} className="input w-auto" />
         </div>
         <button type="submit" className="btn-secondary">
           Filtrar

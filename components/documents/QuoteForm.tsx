@@ -7,6 +7,7 @@ import {
   type EditorLine,
 } from "@/components/documents/LineItemsEditor";
 import { createQuote, updateQuote, type DocFormState } from "@/app/(app)/quotes/actions";
+import { DateInput } from "@/components/ui/DateInput";
 
 type ClientOption = { id: string; name: string };
 type QuoteData = {
@@ -17,6 +18,7 @@ type QuoteData = {
   status: string;
   notes: string;
   conditions: string;
+  discountPct: number;
   lines: EditorLine[];
 };
 
@@ -56,6 +58,7 @@ export function QuoteForm({
   const [lines, setLines] = useState<EditorLine[]>(
     quote?.lines ?? createEmptyLines(defaultVatRate)
   );
+  const [discountPct, setDiscountPct] = useState(quote?.discountPct ?? 0);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -66,12 +69,12 @@ export function QuoteForm({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <label className="label">Número</label>
-          <p className="py-2 font-mono text-sm">
-            {quote ? "Se mantiene al editar" : nextNumberPreview ?? "Automático"}
-          </p>
-        </div>
+        {!quote && nextNumberPreview ? (
+          <div>
+            <label className="label">Número</label>
+            <p className="py-2 font-mono text-sm">{nextNumberPreview}</p>
+          </div>
+        ) : null}
         <div>
           <label className="label" htmlFor="clientId">
             Cliente
@@ -95,8 +98,7 @@ export function QuoteForm({
           <label className="label" htmlFor="issueDate">
             Fecha emisión
           </label>
-          <input
-            type="date"
+          <DateInput
             id="issueDate"
             name="issueDate"
             className="input"
@@ -108,8 +110,7 @@ export function QuoteForm({
           <label className="label" htmlFor="validUntil">
             Válido hasta
           </label>
-          <input
-            type="date"
+          <DateInput
             id="validUntil"
             name="validUntil"
             className="input"
@@ -141,6 +142,9 @@ export function QuoteForm({
         lines={lines}
         onChange={setLines}
         defaultVatRate={defaultVatRate}
+        showGlobalDiscount
+        globalDiscountPct={discountPct}
+        onGlobalDiscountChange={setDiscountPct}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">

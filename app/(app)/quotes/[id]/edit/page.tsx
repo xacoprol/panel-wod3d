@@ -56,6 +56,7 @@ export default async function EditQuotePage({
             status: quote.status,
             notes: quote.notes ?? "",
             conditions: quote.conditions ?? "",
+            discountPct: quote.discountPct,
             lines: quote.lines.map((l) => ({
               id: l.id,
               description: l.description,

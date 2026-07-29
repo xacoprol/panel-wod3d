@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate } from "@/lib/calculations";
+import { formatCurrency, formatDate, calculateDocument } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { convertQuoteToInvoice, deleteQuote } from "../actions";
 
@@ -20,6 +20,18 @@ export default async function QuoteDetailPage({
     },
   });
   if (!quote) notFound();
+
+  const totals = calculateDocument(
+    quote.lines.map((l) => ({
+      description: l.description,
+      quantity: Number(l.quantity),
+      unitPrice: Number(l.unitPrice),
+      vatRate: l.vatRate,
+      discountPct: l.discountPct,
+    })),
+    0,
+    quote.discountPct
+  );
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -93,6 +105,24 @@ export default async function QuoteDetailPage({
         </table>
         <div className="flex justify-end border-t border-line p-4">
           <div className="w-56 space-y-1 text-sm">
+            {totals.discountAmount > 0 ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">Base bruta</span>
+                  <span className="font-mono">
+                    {formatCurrency(totals.grossSubtotal)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">
+                    Dto. general (−{totals.discountPct}%)
+                  </span>
+                  <span className="font-mono text-danger">
+                    −{formatCurrency(totals.discountAmount)}
+                  </span>
+                </div>
+              </>
+            ) : null}
             <div className="flex justify-between">
               <span className="text-ink-muted">Base</span>
               <span className="font-mono">{formatCurrency(Number(quote.subtotal))}</span>

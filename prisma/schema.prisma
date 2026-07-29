@@ -130,6 +130,7 @@ model Quote {
   status        String      @default("BORRADOR") // BORRADOR | ENVIADO | ACEPTADO | RECHAZADO | EXPIRADO
   notes         String?
   conditions    String?
+  discountPct   Float       @default(0) // descuento general % sobre base imponible
   subtotal      Decimal
   vatAmount     Decimal
   total         Decimal

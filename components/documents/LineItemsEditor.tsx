@@ -17,6 +17,10 @@ type Props = {
   onIrpfChange?: (rate: number) => void;
   showIrpf?: boolean;
   defaultVatRate?: number;
+  /** Descuento general del documento (%) — p. ej. presupuestos */
+  globalDiscountPct?: number;
+  onGlobalDiscountChange?: (pct: number) => void;
+  showGlobalDiscount?: boolean;
 };
 
 function newLine(vatRate = 21): EditorLine {
@@ -37,10 +41,13 @@ export function LineItemsEditor({
   onIrpfChange,
   showIrpf = false,
   defaultVatRate = 21,
+  globalDiscountPct = 0,
+  onGlobalDiscountChange,
+  showGlobalDiscount = false,
 }: Props) {
   const totals = useMemo(
-    () => calculateDocument(lines, irpfRate),
-    [lines, irpfRate]
+    () => calculateDocument(lines, irpfRate, globalDiscountPct),
+    [lines, irpfRate, globalDiscountPct]
   );
 
   function update(id: string, patch: Partial<EditorLine>) {
@@ -198,6 +205,37 @@ export function LineItemsEditor({
       </button>
 
       <div className="ml-auto max-w-xs space-y-2 rounded-lg border border-line bg-bg-elevated p-4 text-sm">
+        {showGlobalDiscount ? (
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-ink-muted" htmlFor="discountPct">
+              Dto. general{" "}
+              <input
+                id="discountPct"
+                type="number"
+                min={0}
+                max={100}
+                step={0.01}
+                className="ml-1 w-16 rounded border border-line bg-transparent px-1 text-right font-mono"
+                value={globalDiscountPct}
+                onChange={(e) =>
+                  onGlobalDiscountChange?.(parseFloat(e.target.value) || 0)
+                }
+              />
+              %
+            </label>
+            <span className="font-mono text-danger">
+              −{formatCurrency(totals.discountAmount)}
+            </span>
+          </div>
+        ) : null}
+        {showGlobalDiscount && totals.discountAmount > 0 ? (
+          <div className="flex justify-between text-xs text-ink-muted">
+            <span>Base bruta</span>
+            <span className="font-mono">
+              {formatCurrency(totals.grossSubtotal)}
+            </span>
+          </div>
+        ) : null}
         <div className="flex justify-between">
           <span className="text-ink-muted">Base imponible</span>
           <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
@@ -241,6 +279,13 @@ export function LineItemsEditor({
       <input type="hidden" name="linesJson" value={JSON.stringify(lines)} />
       {showIrpf && (
         <input type="hidden" name="irpfRate" value={String(irpfRate)} />
+      )}
+      {showGlobalDiscount && (
+        <input
+          type="hidden"
+          name="discountPct"
+          value={String(globalDiscountPct)}
+        />
       )}
     </div>
   );

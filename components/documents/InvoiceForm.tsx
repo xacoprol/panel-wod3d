@@ -11,6 +11,7 @@ import {
   updateInvoice,
   type DocFormState,
 } from "@/app/(app)/invoices/actions";
+import { DateInput } from "@/components/ui/DateInput";
 
 type ClientOption = { id: string; name: string };
 type SeriesOption = {
@@ -117,12 +118,6 @@ export function InvoiceForm({
             </p>
           </div>
         )}
-        {invoice && (
-          <div>
-            <label className="label">Número</label>
-            <p className="font-mono text-sm py-2">{invoice.fullNumber}</p>
-          </div>
-        )}
         <div>
           <label className="label" htmlFor="clientId">
             Cliente
@@ -146,8 +141,7 @@ export function InvoiceForm({
           <label className="label" htmlFor="issueDate">
             Fecha emisión
           </label>
-          <input
-            type="date"
+          <DateInput
             id="issueDate"
             name="issueDate"
             className="input"
@@ -159,8 +153,7 @@ export function InvoiceForm({
           <label className="label" htmlFor="dueDate">
             Vencimiento
           </label>
-          <input
-            type="date"
+          <DateInput
             id="dueDate"
             name="dueDate"
             className="input"

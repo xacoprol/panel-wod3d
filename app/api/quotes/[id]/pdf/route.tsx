@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/calculations";
+import { formatDate, calculateDocument } from "@/lib/calculations";
 import { InvoicePdfDocument } from "@/lib/pdf/InvoiceDocument";
 import React from "react";
 
@@ -30,6 +30,18 @@ export async function GET(
   if (!quote || !settings) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  const totals = calculateDocument(
+    quote.lines.map((l) => ({
+      description: l.description,
+      quantity: Number(l.quantity),
+      unitPrice: Number(l.unitPrice),
+      vatRate: l.vatRate,
+      discountPct: l.discountPct,
+    })),
+    0,
+    quote.discountPct
+  );
 
   // Forma de cobro desde notas importadas si existe
   const paymentFromNotes = quote.notes?.match(/Forma de cobro:\s*(.+)/i)?.[1];
@@ -76,6 +88,8 @@ export async function GET(
       subtotal={Number(quote.subtotal)}
       vatAmount={Number(quote.vatAmount)}
       total={Number(quote.total)}
+      specialDiscountPct={totals.discountPct}
+      specialDiscountAmount={totals.discountAmount}
       paymentMethod={paymentFromNotes?.trim() || null}
       notes={
         [quote.notes, quote.conditions]

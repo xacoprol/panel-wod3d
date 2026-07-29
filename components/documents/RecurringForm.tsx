@@ -12,6 +12,7 @@ import {
   type RecurringFormState,
 } from "@/app/(app)/recurring/actions";
 import { VAT_OPERATION_TYPES } from "@/lib/recurring";
+import { DateInput } from "@/components/ui/DateInput";
 
 type Props = {
   clients: { id: string; name: string }[];
@@ -176,8 +177,7 @@ export function RecurringForm({
           <label className="label" htmlFor="startDate">
             Fecha desde
           </label>
-          <input
-            type="date"
+          <DateInput
             id="startDate"
             name="startDate"
             className="input"
@@ -189,8 +189,7 @@ export function RecurringForm({
           <label className="label" htmlFor="endDate">
             Fecha hasta (opcional)
           </label>
-          <input
-            type="date"
+          <DateInput
             id="endDate"
             name="endDate"
             className="input"
