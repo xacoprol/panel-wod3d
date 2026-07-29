@@ -132,7 +132,7 @@ export function RecurringForm({
             id="frequency"
             name="frequency"
             className="input"
-            defaultValue={template?.frequency ?? "MENSUAL"}
+            defaultValue={template?.frequency ?? "ANUAL"}
           >
             {["MENSUAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL"].map((f) => (
               <option key={f} value={f}>

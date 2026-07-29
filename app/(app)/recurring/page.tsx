@@ -1,9 +1,41 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/calculations";
+import {
+  calculateDocument,
+  formatCurrency,
+  formatDate,
+} from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
+
+function templateTotal(t: {
+  irpfRate: number;
+  vatOperationType: string;
+  lines: {
+    description: string;
+    quantity: { toString(): string } | number;
+    unitPrice: { toString(): string } | number;
+    vatRate: number;
+    discountPct: number;
+  }[];
+}): number {
+  const forceZeroVat =
+    t.vatOperationType === "EXENTA" ||
+    t.vatOperationType === "INTRACOMUNITARIA" ||
+    t.vatOperationType === "EXPORTACION";
+  const { total } = calculateDocument(
+    t.lines.map((l) => ({
+      description: l.description,
+      quantity: Number(l.quantity),
+      unitPrice: Number(l.unitPrice),
+      vatRate: forceZeroVat ? 0 : l.vatRate,
+      discountPct: l.discountPct,
+    })),
+    t.irpfRate
+  );
+  return total;
+}
 
 export default async function RecurringPage({
   searchParams,
@@ -20,7 +52,7 @@ export default async function RecurringPage({
     prisma.recurringInvoiceTemplate.findMany({
       include: {
         client: true,
-        _count: { select: { invoices: true } },
+        lines: true,
       },
       orderBy: { nextRunDate: "asc" },
       skip: meta.skip,
@@ -57,7 +89,7 @@ export default async function RecurringPage({
               <th className="px-4 py-3 font-medium">Frecuencia</th>
               <th className="px-4 py-3 font-medium">Próxima</th>
               <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium text-right">Generadas</th>
+              <th className="px-4 py-3 font-medium text-right">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -94,7 +126,9 @@ export default async function RecurringPage({
                   <td className="px-4 py-3">
                     <StatusBadge status={t.status} />
                   </td>
-                  <td className="px-4 py-3 text-right">{t._count.invoices}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {formatCurrency(templateTotal(t))}
+                  </td>
                 </tr>
               ))
             )}

@@ -35,7 +35,7 @@ function parseLocalDate(raw: string): Date {
 }
 
 function parseTemplateFields(formData: FormData) {
-  const frequency = String(formData.get("frequency") ?? "MENSUAL") as Frequency;
+  const frequency = String(formData.get("frequency") ?? "ANUAL") as Frequency;
   const intervalCount =
     parseInt(String(formData.get("intervalCount") ?? "1"), 10) || 1;
   const dayOfMonth = parseInt(String(formData.get("dayOfMonth") ?? "1"), 10);
