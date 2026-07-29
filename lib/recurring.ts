@@ -37,9 +37,9 @@ export function advanceDate(
 }
 
 /**
- * Calcula la próxima fecha de generación >= asOf (por defecto hoy),
- * avanzando de uno en uno desde startDate. Seguro para rangos largos
- * (p.ej. 2021–2040 anuales ≈ 20 iteraciones máx.).
+ * Calcula la próxima fecha de generación estrictamente posterior a asOf
+ * (por defecto hoy), avanzando desde startDate. Así, al crear una plantilla
+ * no se programa una factura para el mismo día (el cron no la emite al momento).
  */
 export function computeInitialNextRun(
   startDate: Date,
@@ -64,7 +64,7 @@ export function computeInitialNextRun(
 
   // Cap iterations to avoid infinite loops on bad data
   let guard = 0;
-  while (candidate < today && guard < 500) {
+  while (candidate <= today && guard < 500) {
     candidate = advanceDate(candidate, frequency, dayOfMonth, intervalCount);
     guard++;
     if (endDate && candidate > startOfDay(endDate)) return null;

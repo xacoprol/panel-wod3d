@@ -44,7 +44,7 @@ export default async function RecurringPage({
           </p>
         </div>
         <Link href="/recurring/new" className="btn-primary">
-          Nueva plantilla
+          Nueva
         </Link>
       </div>
 
