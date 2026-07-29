@@ -33,18 +33,15 @@ function LoginForm() {
     <form onSubmit={onSubmit} className="card-panel w-full max-w-md space-y-5 p-8 shadow-sm">
         <div className="flex flex-col items-center gap-3 text-center">
           <img
-            src="/icons/icon-192.png"
+            src="/brand/logo.png"
             alt="Nexo"
-            width={56}
-            height={56}
-            className="rounded-xl"
+            width={280}
+            height={46}
+            className="h-10 w-auto object-contain"
           />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink">Nexo</h1>
-            <p className="mt-1 text-sm text-ink-muted">
-              Accede a tu panel de facturación
-            </p>
-          </div>
+          <p className="text-sm text-ink-muted">
+            Accede a tu panel de facturación
+          </p>
         </div>
       {error && (
         <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
