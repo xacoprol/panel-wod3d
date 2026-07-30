@@ -9,10 +9,10 @@ import {
   convertQuoteToInvoice,
   deleteQuote,
   duplicateQuote,
-  sendQuote,
   setQuoteStatus,
 } from "@/app/(app)/quotes/actions";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
+import { SendDocumentModal } from "@/components/documents/SendDocumentModal";
 
 export type QuoteListRow = {
   id: string;
@@ -145,6 +145,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
   const [visible, setVisible] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [colsOpen, setColsOpen] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [sendId, setSendId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const colsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -191,24 +192,15 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
     });
   }
 
-  function runSend(id: string) {
-    startTransition(() => {
-      void sendQuote(id)
-        .then((res) => {
-          if (res.mailto) {
-            window.location.href = res.mailto;
-          }
-          router.refresh();
-        })
-        .catch((err) => {
-          if (isRedirectError(err)) return;
-          alert(err instanceof Error ? err.message : String(err));
-        });
-    });
-  }
-
   return (
     <div className="card-panel overflow-visible">
+      <SendDocumentModal
+        kind="quote"
+        id={sendId ?? ""}
+        open={Boolean(sendId)}
+        onClose={() => setSendId(null)}
+        onSent={() => router.refresh()}
+      />
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
@@ -282,7 +274,8 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
               quotes.map((q) => (
                 <tr
                   key={q.id}
-                  className="border-b border-line/60 hover:bg-accent-soft/40"
+                  className="cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  onClick={() => router.push(`/quotes/${q.id}`)}
                 >
                   {activeCols.map((c) => (
                     <td
@@ -295,26 +288,20 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                           : ""
                       }`}
                     >
-                      {c.id === "cliente" || c.id === "numero" ? (
-                        <Link
-                          href={`/quotes/${q.id}`}
-                          className="hover:text-accent"
-                        >
-                          {cellValue(q, c.id)}
-                        </Link>
-                      ) : (
-                        cellValue(q, c.id)
-                      )}
+                      {cellValue(q, c.id)}
                     </td>
                   ))}
-                  <td className="relative px-4 py-3 text-right">
+                  <td
+                    className="relative px-4 py-3 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="inline-flex items-center gap-1">
-                      {!q.invoiceId && q.status !== "ENVIADO" ? (
+                      {!q.invoiceId ? (
                         <button
                           type="button"
                           disabled={pending}
                           className="btn-secondary px-2 py-1 text-xs"
-                          onClick={() => runSend(q.id)}
+                          onClick={() => setSendId(q.id)}
                         >
                           Enviar
                         </button>
@@ -342,7 +329,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                                 disabled={pending}
                                 onClick={() => {
                                   setMenuId(null);
-                                  runSend(q.id);
+                                  setSendId(q.id);
                                 }}
                               >
                                 Enviar

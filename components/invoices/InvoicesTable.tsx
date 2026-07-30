@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { SendDocumentModal } from "@/components/documents/SendDocumentModal";
 
 export type InvoiceListRow = {
   id: string;
@@ -167,8 +169,10 @@ function cellValue(inv: InvoiceListRow, id: ColumnId): ReactNode {
 }
 
 export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
+  const router = useRouter();
   const [visible, setVisible] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [colsOpen, setColsOpen] = useState(false);
+  const [sendId, setSendId] = useState<string | null>(null);
   const colsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -203,6 +207,13 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
 
   return (
     <div className="card-panel overflow-visible">
+      <SendDocumentModal
+        kind="invoice"
+        id={sendId ?? ""}
+        open={Boolean(sendId)}
+        onClose={() => setSendId(null)}
+        onSent={() => router.refresh()}
+      />
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
@@ -217,7 +228,7 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
                   {c.label}
                 </th>
               ))}
-              <th className="relative w-28 px-4 py-3 text-right font-medium">
+              <th className="relative w-44 px-4 py-3 text-right font-medium">
                 Acciones
                 <div className="relative ml-2 inline-block" ref={colsRef}>
                   <button
@@ -276,7 +287,8 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
               invoices.map((inv) => (
                 <tr
                   key={inv.id}
-                  className="border-b border-line/60 hover:bg-accent-soft/40"
+                  className="cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  onClick={() => router.push(`/invoices/${inv.id}`)}
                 >
                   {activeCols.map((c) => (
                     <td
@@ -292,20 +304,23 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
                           : ""
                       }`}
                     >
-                      {c.id === "cliente" || c.id === "numero" ? (
-                        <Link
-                          href={`/invoices/${inv.id}`}
-                          className="hover:text-accent"
-                        >
-                          {cellValue(inv, c.id)}
-                        </Link>
-                      ) : (
-                        cellValue(inv, c.id)
-                      )}
+                      {cellValue(inv, c.id)}
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-right">
+                  <td
+                    className="px-4 py-3 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="inline-flex items-center gap-1">
+                      {inv.status !== "ANULADA" ? (
+                        <button
+                          type="button"
+                          className="btn-secondary px-2 py-1 text-xs"
+                          onClick={() => setSendId(inv.id)}
+                        >
+                          Enviar
+                        </button>
+                      ) : null}
                       <Link
                         href={`/invoices/${inv.id}`}
                         className="btn-ghost px-2 py-1 text-xs"

@@ -89,7 +89,7 @@ export default async function ClientsPage({
               clients.map((c) => (
                 <tr
                   key={c.id}
-                  className="relative border-b border-line/60 transition hover:bg-accent-soft/40"
+                  className="relative cursor-pointer border-b border-line/60 transition hover:bg-accent-soft/40"
                 >
                   <td className="px-4 py-3">
                     <Link

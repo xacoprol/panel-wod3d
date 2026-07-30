@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, calculateDocument } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { convertQuoteToInvoice, deleteQuote } from "../actions";
+import { SendDocumentButton } from "@/components/documents/SendDocumentButton";
 
 export default async function QuoteDetailPage({
   params,
@@ -53,6 +54,7 @@ export default async function QuoteDetailPage({
         <div className="flex flex-wrap gap-2">
           {!quote.invoice && (
             <>
+              <SendDocumentButton kind="quote" id={id} />
               <Link href={`/quotes/${id}/edit`} className="btn-secondary">
                 Editar
               </Link>

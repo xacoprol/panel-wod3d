@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { annulInvoice, deleteInvoice, setInvoiceStatus } from "../actions";
+import { SendDocumentButton } from "@/components/documents/SendDocumentButton";
 
 export default async function InvoiceDetailPage({
   params,
@@ -49,9 +50,12 @@ export default async function InvoiceDetailPage({
         </div>
         <div className="flex flex-wrap gap-2">
           {invoice.status !== "ANULADA" && (
-            <Link href={`/invoices/${id}/edit`} className="btn-secondary">
-              Editar
-            </Link>
+            <>
+              <SendDocumentButton kind="invoice" id={id} />
+              <Link href={`/invoices/${id}/edit`} className="btn-secondary">
+                Editar
+              </Link>
+            </>
           )}
           <Link
             href={`/api/invoices/${id}/pdf`}

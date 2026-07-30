@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
@@ -98,6 +99,7 @@ function cellValue(row: RecurringListRow, id: ColumnId): ReactNode {
 }
 
 export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
+  const router = useRouter();
   const [visible, setVisible] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [colsOpen, setColsOpen] = useState(false);
   const colsRef = useRef<HTMLDivElement>(null);
@@ -206,7 +208,8 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
               rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-line/60 hover:bg-accent-soft/40"
+                  className="cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  onClick={() => router.push(`/recurring/${row.id}`)}
                 >
                   {activeCols.map((c) => (
                     <td
@@ -221,19 +224,13 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
                           : ""
                       }`}
                     >
-                      {c.id === "nombre" || c.id === "cliente" ? (
-                        <Link
-                          href={`/recurring/${row.id}`}
-                          className="hover:text-accent"
-                        >
-                          {cellValue(row, c.id)}
-                        </Link>
-                      ) : (
-                        cellValue(row, c.id)
-                      )}
+                      {cellValue(row, c.id)}
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-right">
+                  <td
+                    className="px-4 py-3 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Link
                       href={`/recurring/${row.id}`}
                       className="btn-ghost px-2 py-1 text-xs"
