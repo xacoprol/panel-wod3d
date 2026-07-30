@@ -55,10 +55,27 @@ export default async function FiscalPage({
       <FiscalPeriodNav year={year} quarter={quarter} />
 
       <p className="rounded-lg border border-line bg-accent-soft/40 px-4 py-3 text-sm text-ink-muted">
-        Borradores orientativos a partir de datos del panel. Revisa siempre
-        antes de presentar en la Agencia Tributaria. No sustituyen asesoramiento
-        fiscal profesional en casos especiales.
+        Las facturas emitidas ya entran solas. Los <strong className="font-medium text-ink">gastos</strong> (luz,
+        software, material, gestoría…) hay que registrarlos en{" "}
+        <Link href="/fiscal/expenses" className="text-accent underline">
+          Gastos
+        </Link>
+        ; si no, el IVA a pagar y el 130 salen demasiado altos. Revisa el
+        borrador antes de presentar en la AEAT.
       </p>
+
+      {summary.expenses.count === 0 ? (
+        <p className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+          Este trimestre no tiene gastos registrados.{" "}
+          <Link
+            href="/fiscal/expenses/new"
+            className="font-medium underline"
+          >
+            Añade facturas recibidas
+          </Link>{" "}
+          para que el resultado a ingresar tenga sentido.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card-panel p-4">

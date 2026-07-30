@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatCurrency } from "@/lib/calculations";
 import type { FiscalPeriodSummary } from "@/lib/fiscal";
 
@@ -9,18 +10,39 @@ type Props = {
 
 export function ModeloDraft({ title, model, summary }: Props) {
   const draft = model === "303" ? summary.modelo303 : summary.modelo130;
-  const resultLabel =
-    draft.result >= 0 ? "A ingresar (orientativo)" : "A compensar / devolver (orientativo)";
+  const missingExpenses = summary.expenses.count === 0;
+  const resultPositive = draft.result >= 0;
+
+  const resultTitle = resultPositive
+    ? "Resultado estimado a ingresar"
+    : "Resultado estimado a compensar / devolver";
+
+  const how =
+    model === "303"
+      ? "IVA que cobraste en facturas − IVA de tus gastos deducibles."
+      : "20 % de (ingresos − gastos) − retenciones que ya te hicieron en facturas.";
 
   return (
     <section className="card-panel space-y-4 p-5 sm:p-6">
       <div>
         <h2 className="form-section-title">{title}</h2>
         <p className="form-section-hint">
-          Periodo {summary.label}. Borrador orientativo a partir de facturas y
-          gastos del panel — revisa antes de presentar en la sede AEAT.
+          Periodo {summary.label}. Cálculo automático con lo que hay en el
+          panel ({how}) Úsalo para rellenar el modelo en la AEAT; no es el
+          modelo oficial presentado.
         </p>
       </div>
+
+      {missingExpenses ? (
+        <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-warning">
+          Aún no hay gastos en este trimestre. Sin ellos el IVA soportado y los
+          gastos del 130 van a 0, y el importe a ingresar sale más alto de lo
+          real.{" "}
+          <Link href="/fiscal/expenses/new" className="font-medium underline">
+            Registrar gastos
+          </Link>
+        </p>
+      ) : null}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -47,15 +69,21 @@ export function ModeloDraft({ title, model, summary }: Props) {
 
       <div
         className={`rounded-lg px-4 py-3 text-sm ${
-          draft.result >= 0
-            ? "bg-warning/10 text-warning"
-            : "bg-success/10 text-success"
+          missingExpenses
+            ? "bg-line/40 text-ink-muted"
+            : resultPositive
+              ? "bg-warning/10 text-warning"
+              : "bg-success/10 text-success"
         }`}
       >
-        <span className="font-medium">{resultLabel}: </span>
-        <span className="font-mono font-semibold">
-          {formatCurrency(Math.abs(draft.result))}
-        </span>
+        <p className="font-medium">
+          {resultTitle}:{" "}
+          <span className="font-mono font-semibold">
+            {formatCurrency(Math.abs(draft.result))}
+          </span>
+          {missingExpenses ? " (incompleto)" : null}
+        </p>
+        <p className="mt-1 text-xs opacity-90">{how}</p>
       </div>
     </section>
   );

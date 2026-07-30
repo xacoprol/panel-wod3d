@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 import type { Expense } from "@prisma/client";
 import { VAT_RATES } from "@/lib/calculations";
 import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
@@ -10,6 +10,8 @@ import {
   updateExpense,
   type ExpenseFormState,
 } from "@/app/(app)/fiscal/expenses/actions";
+import { parseExpenseFromUpload } from "@/app/(app)/fiscal/expenses/parse-actions";
+import type { ParsedExpenseDraft } from "@/lib/gemini-expense";
 
 type Props = {
   expense?: Expense;
@@ -29,10 +31,28 @@ export function ExpenseForm({ expense }: Props) {
     FormData
   >(action, {});
 
+  const [issueDate, setIssueDate] = useState(
+    expense
+      ? toDateInputValue(expense.issueDate)
+      : toDateInputValue(new Date())
+  );
+  const [category, setCategory] = useState(expense?.category ?? "OTROS");
+  const [supplierName, setSupplierName] = useState(
+    expense?.supplierName ?? ""
+  );
+  const [supplierNif, setSupplierNif] = useState(expense?.supplierNif ?? "");
+  const [description, setDescription] = useState(expense?.description ?? "");
   const [subtotal, setSubtotal] = useState(
     expense ? Number(expense.subtotal) : 0
   );
   const [vatRate, setVatRate] = useState(expense?.vatRate ?? 21);
+  const [notes, setNotes] = useState(expense?.notes ?? "");
+  const [deductible, setDeductible] = useState(expense?.deductible ?? true);
+  const [dateKey, setDateKey] = useState(0);
+
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parseInfo, setParseInfo] = useState<string | null>(null);
+  const [parsing, startParse] = useTransition();
 
   const vatAmount = useMemo(
     () => Math.round(subtotal * (vatRate / 100) * 100) / 100,
@@ -43,6 +63,44 @@ export function ExpenseForm({ expense }: Props) {
     [subtotal, vatAmount]
   );
 
+  function applyDraft(draft: ParsedExpenseDraft) {
+    setIssueDate(draft.issueDate);
+    setDateKey((k) => k + 1);
+    setCategory(draft.category);
+    setSupplierName(draft.supplierName);
+    setSupplierNif(draft.supplierNif ?? "");
+    setDescription(draft.description ?? "");
+    setSubtotal(draft.subtotal);
+    setVatRate(draft.vatRate);
+    setNotes(draft.notes ?? "");
+    const conf =
+      draft.confidence === "high"
+        ? "alta"
+        : draft.confidence === "low"
+          ? "baja"
+          : "media";
+    setParseInfo(
+      `Datos rellenados (confianza ${conf}). Revísalos antes de guardar.`
+    );
+  }
+
+  function onFileChange(file: File | null) {
+    setParseError(null);
+    setParseInfo(null);
+    if (!file) return;
+    const fd = new FormData();
+    fd.set("file", file);
+    startParse(() => {
+      void parseExpenseFromUpload(fd).then((res) => {
+        if (!res.ok) {
+          setParseError(res.error);
+          return;
+        }
+        applyDraft(res.draft);
+      });
+    });
+  }
+
   return (
     <form action={formAction} className="mx-auto max-w-2xl space-y-5">
       {state.error ? (
@@ -51,10 +109,42 @@ export function ExpenseForm({ expense }: Props) {
         </p>
       ) : null}
 
+      {!expense ? (
+        <section className="card-panel space-y-3 p-5 sm:p-6">
+          <div>
+            <h2 className="form-section-title">Subir factura</h2>
+            <p className="form-section-hint">
+              PDF o foto (JPG/PNG). Gemini lee el documento y rellena el
+              formulario; tú revisas y guardas.
+            </p>
+          </div>
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp,image/gif"
+            className="input cursor-pointer file:mr-3 file:rounded-md file:border-0 file:bg-accent-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-accent"
+            disabled={parsing || pending}
+            onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+          />
+          {parsing ? (
+            <p className="text-sm text-ink-muted">Leyendo factura…</p>
+          ) : null}
+          {parseError ? (
+            <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+              {parseError}
+            </p>
+          ) : null}
+          {parseInfo ? (
+            <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
+              {parseInfo}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="card-panel space-y-4 p-5 sm:p-6">
         <div>
           <h2 className="form-section-title">
-            {expense ? "Editar gasto" : "Nuevo gasto"}
+            {expense ? "Editar gasto" : "Datos del gasto"}
           </h2>
           <p className="form-section-hint">
             Factura recibida o ticket. Entra en el IVA soportado (303) y en el
@@ -68,14 +158,12 @@ export function ExpenseForm({ expense }: Props) {
               Fecha
             </label>
             <DateInput
+              key={dateKey}
               id="issueDate"
               name="issueDate"
               required
-              defaultValue={
-                expense
-                  ? toDateInputValue(expense.issueDate)
-                  : toDateInputValue(new Date())
-              }
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
             />
           </div>
           <div>
@@ -86,7 +174,8 @@ export function ExpenseForm({ expense }: Props) {
               id="category"
               name="category"
               className="input"
-              defaultValue={expense?.category ?? "OTROS"}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
             >
               {EXPENSE_CATEGORIES.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -107,7 +196,8 @@ export function ExpenseForm({ expense }: Props) {
               name="supplierName"
               className="input"
               required
-              defaultValue={expense?.supplierName ?? ""}
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
               placeholder="Nombre o razón social"
             />
           </div>
@@ -119,7 +209,8 @@ export function ExpenseForm({ expense }: Props) {
               id="supplierNif"
               name="supplierNif"
               className="input font-mono"
-              defaultValue={expense?.supplierNif ?? ""}
+              value={supplierNif}
+              onChange={(e) => setSupplierNif(e.target.value)}
               placeholder="Opcional"
             />
           </div>
@@ -133,7 +224,8 @@ export function ExpenseForm({ expense }: Props) {
             id="description"
             name="description"
             className="input"
-            defaultValue={expense?.description ?? ""}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder="Ej. Hosting Vercel julio"
           />
         </div>
@@ -152,9 +244,7 @@ export function ExpenseForm({ expense }: Props) {
               required
               className="input font-mono"
               value={subtotal}
-              onChange={(e) =>
-                setSubtotal(parseFloat(e.target.value) || 0)
-              }
+              onChange={(e) => setSubtotal(parseFloat(e.target.value) || 0)}
             />
           </div>
           <div>
@@ -212,7 +302,8 @@ export function ExpenseForm({ expense }: Props) {
             type="checkbox"
             name="deductible"
             value="1"
-            defaultChecked={expense?.deductible ?? true}
+            checked={deductible}
+            onChange={(e) => setDeductible(e.target.checked)}
             className="rounded border-line"
           />
           Deducible (IVA soportado y gasto en modelo 130)
@@ -226,13 +317,14 @@ export function ExpenseForm({ expense }: Props) {
             id="notes"
             name="notes"
             className="input min-h-20"
-            defaultValue={expense?.notes ?? ""}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
             placeholder="Opcional"
           />
         </div>
       </section>
 
-      <button type="submit" className="btn-primary" disabled={pending}>
+      <button type="submit" className="btn-primary" disabled={pending || parsing}>
         {pending ? "Guardando…" : expense ? "Guardar cambios" : "Registrar gasto"}
       </button>
     </form>
