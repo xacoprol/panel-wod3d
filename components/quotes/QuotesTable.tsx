@@ -9,6 +9,7 @@ import {
   convertQuoteToInvoice,
   deleteQuote,
   duplicateQuote,
+  sendQuote,
   setQuoteStatus,
 } from "@/app/(app)/quotes/actions";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
@@ -179,10 +180,26 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
     [visible]
   );
 
-  function run(action: () => Promise<void>) {
+  function run(action: () => Promise<unknown>) {
     startTransition(() => {
       void action()
         .then(() => router.refresh())
+        .catch((err) => {
+          if (isRedirectError(err)) return;
+          alert(err instanceof Error ? err.message : String(err));
+        });
+    });
+  }
+
+  function runSend(id: string) {
+    startTransition(() => {
+      void sendQuote(id)
+        .then((res) => {
+          if (res.mailto) {
+            window.location.href = res.mailto;
+          }
+          router.refresh();
+        })
         .catch((err) => {
           if (isRedirectError(err)) return;
           alert(err instanceof Error ? err.message : String(err));
@@ -297,9 +314,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                           type="button"
                           disabled={pending}
                           className="btn-secondary px-2 py-1 text-xs"
-                          onClick={() =>
-                            run(() => setQuoteStatus(q.id, "ENVIADO"))
-                          }
+                          onClick={() => runSend(q.id)}
                         >
                           Enviar
                         </button>
@@ -327,7 +342,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                                 disabled={pending}
                                 onClick={() => {
                                   setMenuId(null);
-                                  run(() => setQuoteStatus(q.id, "ENVIADO"));
+                                  runSend(q.id);
                                 }}
                               >
                                 Enviar

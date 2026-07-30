@@ -236,18 +236,54 @@ export async function setQuoteStatus(id: string, status: string) {
   const allowed = ["BORRADOR", "ENVIADO", "ACEPTADO", "RECHAZADO", "EXPIRADO"];
   if (!allowed.includes(status)) throw new Error("Estado no válido");
 
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: { invoice: true },
-  });
-  if (!quote) throw new Error("Presupuesto no encontrado");
-  if (quote.invoice && status !== "ACEPTADO") {
+  const existing = await prisma.quote.findUnique({ where: { id } });
+  if (!existing) throw new Error("Presupuesto no encontrado");
+
+  const inv = await prisma.invoice.findUnique({ where: { quoteId: id } });
+  if (inv && status !== "ACEPTADO") {
     throw new Error("Ya convertido en factura");
   }
 
   await prisma.quote.update({ where: { id }, data: { status } });
   revalidatePath("/quotes");
   revalidatePath(`/quotes/${id}`);
+}
+
+/** Marca como enviado y prepara mailto con la plantilla de ajustes. */
+export async function sendQuote(id: string): Promise<{ mailto: string }> {
+  await requireAuth();
+
+  const quote = await prisma.quote.findUnique({
+    where: { id },
+    include: { client: true },
+  });
+  if (!quote) throw new Error("Presupuesto no encontrado");
+
+  const inv = await prisma.invoice.findUnique({ where: { quoteId: id } });
+  if (inv) throw new Error("Ya convertido en factura");
+
+  const settings = await prisma.companySettings.findFirst();
+  const company =
+    settings?.companyName?.trim() || settings?.name?.trim() || "Empresa";
+
+  const subject = (settings?.emailSubject ?? "Documento {{number}} de {{company}}")
+    .replaceAll("{{number}}", quote.fullNumber)
+    .replaceAll("{{company}}", company);
+  const body = (settings?.emailBody ??
+    "Adjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}")
+    .replaceAll("{{number}}", quote.fullNumber)
+    .replaceAll("{{company}}", company);
+
+  await prisma.quote.update({
+    where: { id },
+    data: { status: "ENVIADO" },
+  });
+  revalidatePath("/quotes");
+  revalidatePath(`/quotes/${id}`);
+
+  const to = quote.client.email?.trim() || "";
+  const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return { mailto };
 }
 
 export async function duplicateQuote(id: string) {
