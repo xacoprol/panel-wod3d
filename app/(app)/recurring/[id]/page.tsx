@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { setRecurringStatus } from "../actions";
+import { DeleteRecurringButton } from "@/components/recurring/DeleteRecurringButton";
 
 export default async function RecurringDetailPage({
   params,
@@ -57,6 +58,7 @@ export default async function RecurringDetailPage({
               </button>
             </form>
           ) : null}
+          <DeleteRecurringButton templateId={id} name={template.name} />
         </div>
       </div>
 

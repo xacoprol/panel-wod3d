@@ -235,3 +235,21 @@ export async function setRecurringStatus(
   revalidatePath("/recurring");
   revalidatePath(`/recurring/${id}`);
 }
+
+export async function deleteRecurring(id: string) {
+  await requireAuth();
+  const template = await prisma.recurringInvoiceTemplate.findUnique({
+    where: { id },
+  });
+  if (!template) throw new Error("Plantilla no encontrada");
+
+  await prisma.invoice.updateMany({
+    where: { recurringTemplateId: id },
+    data: { recurringTemplateId: null },
+  });
+  await prisma.recurringInvoiceTemplate.delete({ where: { id } });
+
+  revalidatePath("/recurring");
+  revalidatePath("/invoices");
+  redirect("/recurring");
+}

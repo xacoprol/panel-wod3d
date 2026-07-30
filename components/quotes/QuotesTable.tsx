@@ -15,12 +15,12 @@ import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   convertQuoteToInvoice,
-  deleteQuote,
   duplicateQuote,
   setQuoteStatus,
 } from "@/app/(app)/quotes/actions";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { SendDocumentModal } from "@/components/documents/SendDocumentModal";
+import { DeleteQuoteConfirmModal } from "@/components/quotes/DeleteQuoteButton";
 
 export type QuoteListRow = {
   id: string;
@@ -164,6 +164,7 @@ function QuoteActionsMenu({
   onClose,
   run,
   onSend,
+  onRequestDelete,
   itemClassName,
 }: {
   q: QuoteListRow;
@@ -171,6 +172,7 @@ function QuoteActionsMenu({
   onClose: () => void;
   run: (action: () => Promise<unknown>) => void;
   onSend: () => void;
+  onRequestDelete: () => void;
   itemClassName: string;
 }) {
   return (
@@ -212,9 +214,7 @@ function QuoteActionsMenu({
           disabled={pending}
           onClick={() => {
             onClose();
-            if (confirm(`¿Eliminar el presupuesto ${q.fullNumber}?`)) {
-              run(() => deleteQuote(q.id));
-            }
+            onRequestDelete();
           }}
         >
           Eliminar
@@ -297,6 +297,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
     null
   );
   const [sendId, setSendId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<QuoteListRow | null>(null);
   const [pending, startTransition] = useTransition();
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -435,6 +436,14 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
         onClose={() => setSendId(null)}
         onSent={() => router.refresh()}
       />
+      <DeleteQuoteConfirmModal
+        quoteId={deleteTarget?.id ?? ""}
+        fullNumber={deleteTarget?.fullNumber ?? ""}
+        kindLabel={deleteTarget?.isProforma ? "proforma" : "presupuesto"}
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => router.refresh()}
+      />
       {mounted &&
       menuQuote &&
       menuPos &&
@@ -466,6 +475,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                   closeMenu();
                   setSendId(menuQuote.id);
                 }}
+                onRequestDelete={() => setDeleteTarget(menuQuote)}
                 itemClassName="block w-full px-4 py-3.5 text-left text-base hover:bg-accent-soft"
               />
             </div>
@@ -486,6 +496,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                 closeMenu();
                 setSendId(menuQuote.id);
               }}
+              onRequestDelete={() => setDeleteTarget(menuQuote)}
               itemClassName="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
             />
           </div>

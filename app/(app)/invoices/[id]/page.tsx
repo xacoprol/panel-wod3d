@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { paymentTotals } from "@/lib/invoice-payments";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { annulInvoice, deleteInvoice, setInvoiceStatus } from "../actions";
+import { annulInvoice, setInvoiceStatus } from "../actions";
 import { SendDocumentButton } from "@/components/documents/SendDocumentButton";
+import { DeleteInvoiceButton } from "@/components/invoices/DeleteInvoiceButton";
 import { InvoicePaymentsPanel } from "@/components/invoices/InvoicePaymentsPanel";
 import { MarkPendingButton } from "@/components/invoices/MarkPendingButton";
 import { SendReminderButton } from "@/components/documents/SendReminderButton";
@@ -76,6 +77,10 @@ export default async function InvoiceDetailPage({
           >
             Descargar PDF
           </Link>
+          <DeleteInvoiceButton
+            invoiceId={id}
+            fullNumber={invoice.fullNumber}
+          />
         </div>
       </div>
 
@@ -114,16 +119,6 @@ export default async function InvoiceDetailPage({
         }))}
         disabled={invoice.status === "ANULADA"}
       />
-
-      <form action={deleteInvoice.bind(null, id)}>
-        <button
-          type="submit"
-          className="btn-ghost text-danger text-sm"
-          title="Si es la última de la serie, se reutiliza su número"
-        >
-          Eliminar factura
-        </button>
-      </form>
 
       <div className="card-panel overflow-x-auto">
         <table className="w-full text-sm">
@@ -204,11 +199,6 @@ export default async function InvoiceDetailPage({
         </div>
       </div>
 
-      <p className="text-xs text-ink-muted">
-        Al eliminar una factura se borra del sistema. Si era la última de la
-        serie, su número ({invoice.fullNumber}) vuelve a quedar disponible.
-        Anular la mantiene en el listado con el número reservado.
-      </p>
     </div>
   );
 }

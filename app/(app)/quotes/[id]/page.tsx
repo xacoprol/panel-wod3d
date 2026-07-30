@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, calculateDocument } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { convertQuoteToInvoice, deleteQuote } from "../actions";
+import { convertQuoteToInvoice } from "../actions";
 import { SendDocumentButton } from "@/components/documents/SendDocumentButton";
+import { DeleteQuoteButton } from "@/components/quotes/DeleteQuoteButton";
 import { quoteKindLabel } from "@/lib/quote-kind";
 
 export default async function QuoteDetailPage({
@@ -79,6 +80,13 @@ export default async function QuoteDetailPage({
           <Link href={`/api/quotes/${id}/pdf`} className="btn-secondary" target="_blank">
             PDF {kind}
           </Link>
+          {!quote.invoice && (
+            <DeleteQuoteButton
+              quoteId={id}
+              fullNumber={quote.fullNumber}
+              kindLabel={kind.toLowerCase()}
+            />
+          )}
         </div>
       </div>
 
@@ -146,14 +154,6 @@ export default async function QuoteDetailPage({
           </div>
         </div>
       </div>
-
-      {!quote.invoice && (
-        <form action={deleteQuote.bind(null, id)}>
-          <button type="submit" className="btn-ghost text-xs text-danger">
-            Eliminar presupuesto
-          </button>
-        </form>
-      )}
     </div>
   );
 }
