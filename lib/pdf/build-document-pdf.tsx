@@ -3,6 +3,10 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
 import { calculateDocument, formatDate } from "@/lib/calculations";
 import { InvoicePdfDocument } from "@/lib/pdf/InvoiceDocument";
+import {
+  quotePdfFilename,
+  quotePdfTitle,
+} from "@/lib/quote-kind";
 
 export async function buildQuotePdf(
   quoteId: string
@@ -33,7 +37,7 @@ export async function buildQuotePdf(
 
   const doc = (
     <InvoicePdfDocument
-      title="PRESUPUESTO"
+      title={quotePdfTitle(quote.isProforma)}
       number={quote.fullNumber}
       issueDate={formatDate(quote.issueDate)}
       dueDate={formatDate(quote.validUntil)}
@@ -90,7 +94,7 @@ export async function buildQuotePdf(
   return {
     buffer,
     fullNumber: quote.fullNumber,
-    filename: `Presupuesto_${quote.fullNumber}.pdf`,
+    filename: quotePdfFilename(quote.fullNumber, quote.isProforma),
   };
 }
 

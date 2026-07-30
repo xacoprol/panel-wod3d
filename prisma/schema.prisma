@@ -136,6 +136,7 @@ model Quote {
   issueDate     DateTime
   validUntil    DateTime?
   status        String      @default("BORRADOR") // BORRADOR | ENVIADO | ACEPTADO | RECHAZADO | EXPIRADO
+  isProforma    Boolean     @default(false) // PDF/email as Proforma (same data, not a fiscal invoice)
   notes         String?
   conditions    String?
   discountPct   Float       @default(0) // descuento general % sobre base imponible

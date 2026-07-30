@@ -22,6 +22,7 @@ type QuoteData = {
   issueDate: string;
   validUntil: string;
   status: string;
+  isProforma: boolean;
   notes: string;
   conditions: string;
   discountPct: number;
@@ -64,6 +65,7 @@ export function QuoteForm({
     quote?.lines ?? createEmptyLines(defaultVatRate)
   );
   const [discountPct, setDiscountPct] = useState(quote?.discountPct ?? 0);
+  const [isProforma, setIsProforma] = useState(quote?.isProforma ?? false);
 
   const totals = useMemo(
     () => calculateDocument(lines, 0, discountPct),
@@ -72,11 +74,12 @@ export function QuoteForm({
 
   const numberLabel =
     quote?.fullNumber ?? nextNumberPreview ?? undefined;
+  const kindLabel = isProforma ? "Proforma" : "Presupuesto";
 
   return (
     <form action={formAction}>
       <DocumentFormShell
-        docKind="Presupuesto"
+        docKind={kindLabel}
         numberLabel={numberLabel}
         subtitle={
           quote
@@ -140,12 +143,31 @@ export function QuoteForm({
                 )}
               </select>
             </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="isProforma"
+                  value="1"
+                  checked={isProforma}
+                  onChange={(e) => setIsProforma(e.target.checked)}
+                  className="mt-0.5 rounded border-line"
+                />
+                <span>
+                  <span className="font-medium">Emitir como proforma</span>
+                  <span className="mt-0.5 block text-xs text-ink-muted">
+                    Mismo documento y numeración; el PDF y el email salen como
+                    «Proforma» (no es factura fiscal).
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
         </DocumentFormSection>
 
         <DocumentFormSection
           title="Conceptos"
-          hint="Líneas del presupuesto y descuento general"
+          hint={`Líneas del ${kindLabel.toLowerCase()} y descuento general`}
         >
           <LineItemsEditor
             lines={lines}
@@ -190,7 +212,7 @@ export function QuoteForm({
       </DocumentFormShell>
 
       <DocumentFormStickyBar
-        totalLabel="Total presupuesto"
+        totalLabel={isProforma ? "Total proforma" : "Total presupuesto"}
         totalValue={formatCurrency(totals.total)}
       >
         <a href="/quotes" className="btn-secondary">
@@ -201,7 +223,9 @@ export function QuoteForm({
             ? "Guardando…"
             : quote
               ? "Guardar cambios"
-              : "Crear presupuesto"}
+              : isProforma
+                ? "Crear proforma"
+                : "Crear presupuesto"}
         </button>
       </DocumentFormStickyBar>
     </form>

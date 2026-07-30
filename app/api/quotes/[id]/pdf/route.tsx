@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { formatDate, calculateDocument } from "@/lib/calculations";
-import { InvoicePdfDocument } from "@/lib/pdf/InvoiceDocument";
-import React from "react";
+import { buildQuotePdf } from "@/lib/pdf/build-document-pdf";
 
 export async function GET(
   _req: NextRequest,
@@ -16,95 +12,16 @@ export async function GET(
   }
 
   const { id } = await params;
-  const [quote, settings] = await Promise.all([
-    prisma.quote.findUnique({
-      where: { id },
-      include: {
-        client: true,
-        lines: { orderBy: { sortOrder: "asc" } },
+  try {
+    const pdf = await buildQuotePdf(id);
+    const asDownload = _req.nextUrl.searchParams.get("download") === "1";
+    return new NextResponse(new Uint8Array(pdf.buffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `${asDownload ? "attachment" : "inline"}; filename="${pdf.filename}"`,
       },
-    }),
-    prisma.companySettings.findFirst(),
-  ]);
-
-  if (!quote || !settings) {
+    });
+  } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-
-  const totals = calculateDocument(
-    quote.lines.map((l) => ({
-      description: l.description,
-      quantity: Number(l.quantity),
-      unitPrice: Number(l.unitPrice),
-      vatRate: l.vatRate,
-      discountPct: l.discountPct,
-    })),
-    0,
-    quote.discountPct
-  );
-
-  const doc = (
-    <InvoicePdfDocument
-      title="PRESUPUESTO"
-      number={quote.fullNumber}
-      issueDate={formatDate(quote.issueDate)}
-      dueDate={formatDate(quote.validUntil)}
-      brandName={settings.companyName?.trim() || settings.name || "Empresa"}
-      logoUrl={settings.logoUrl}
-      issuer={{
-        name: settings.name,
-        nif: settings.nif,
-        addressStreet: settings.addressStreet,
-        addressCity: settings.addressCity,
-        addressProvince: settings.addressProvince,
-        addressZip: settings.addressZip,
-        addressCountry: settings.addressCountry,
-        email: settings.email,
-        phone: settings.phone,
-      }}
-      client={{
-        name: quote.client.name,
-        nif: quote.client.nif,
-        countryCode: quote.client.countryCode,
-        addressStreet: quote.client.addressStreet,
-        addressCity: quote.client.addressCity,
-        addressProvince: quote.client.addressProvince,
-        addressZip: quote.client.addressZip,
-        addressCountry: quote.client.addressCountry,
-        email: quote.client.email,
-        phone: quote.client.phone,
-      }}
-      lines={quote.lines.map((l) => ({
-        description: l.description,
-        quantity: Number(l.quantity),
-        unitPrice: Number(l.unitPrice),
-        vatRate: l.vatRate,
-        discountPct: l.discountPct,
-        lineSubtotal: Number(l.lineSubtotal),
-      }))}
-      subtotal={Number(quote.subtotal)}
-      vatAmount={Number(quote.vatAmount)}
-      total={Number(quote.total)}
-      specialDiscountPct={totals.discountPct}
-      specialDiscountAmount={totals.discountAmount}
-      showPayment={false}
-      notes={
-        [quote.notes, quote.conditions]
-          .filter(Boolean)
-          .join("\n")
-          .replace(/Forma de cobro:\s*.+/i, "")
-          .trim() || null
-      }
-    />
-  );
-
-  const buffer = await renderToBuffer(doc);
-  const asDownload = _req.nextUrl.searchParams.get("download") === "1";
-
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `${asDownload ? "attachment" : "inline"}; filename="Presupuesto_${quote.fullNumber}.pdf"`,
-    },
-  });
 }

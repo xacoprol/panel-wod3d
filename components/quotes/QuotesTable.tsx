@@ -20,6 +20,7 @@ export type QuoteListRow = {
   issueDate: string;
   validUntil: string | null;
   status: string;
+  isProforma: boolean;
   notes: string | null;
   discountPct: number;
   subtotal: number;
@@ -110,7 +111,16 @@ function cellValue(q: QuoteListRow, id: ColumnId): ReactNode {
     case "total":
       return formatCurrency(q.total);
     case "numero":
-      return <span className="font-mono">{q.fullNumber}</span>;
+      return (
+        <span className="inline-flex items-center gap-1.5 font-mono">
+          {q.fullNumber}
+          {q.isProforma ? (
+            <span className="badge bg-accent-soft text-[10px] font-sans font-medium normal-case tracking-normal text-accent">
+              Proforma
+            </span>
+          ) : null}
+        </span>
+      );
     case "estado":
       return <StatusBadge status={q.status} />;
     case "nif":

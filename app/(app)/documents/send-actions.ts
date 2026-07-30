@@ -13,6 +13,7 @@ import {
   buildInvoicePdf,
   buildQuotePdf,
 } from "@/lib/pdf/build-document-pdf";
+import { quoteKindLabel, quotePdfFilename } from "@/lib/quote-kind";
 
 export type SendDocKind = "quote" | "invoice";
 
@@ -46,6 +47,7 @@ export async function getSendDocumentDraft(
     if (!quote) return { error: "Presupuesto no encontrado" };
     const client = quote.client.name;
     const contact = quote.client.contactPerson?.trim() || client;
+    const kind = quoteKindLabel(quote.isProforma);
     return {
       configured: isSmtpConfigured(),
       configHint: smtpConfigHint(),
@@ -59,9 +61,9 @@ export async function getSendDocumentDraft(
           "Hola {{contact}},\n\nAdjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
         { number: quote.fullNumber, company, client, contact }
       ),
-      docLabel: "Presupuesto",
+      docLabel: kind,
       fullNumber: quote.fullNumber,
-      attachName: `Presupuesto_${quote.fullNumber}.pdf`,
+      attachName: quotePdfFilename(quote.fullNumber, quote.isProforma),
     };
   }
 

@@ -73,6 +73,9 @@ export async function createQuote(
         issueDate,
         validUntil: validUntilRaw ? new Date(validUntilRaw) : null,
         status,
+        isProforma:
+          formData.get("isProforma") === "on" ||
+          formData.get("isProforma") === "1",
         notes: String(formData.get("notes") ?? "").trim() || null,
         conditions: String(formData.get("conditions") ?? "").trim() || null,
         discountPct,
@@ -129,6 +132,9 @@ export async function updateQuote(
         issueDate,
         validUntil: validUntilRaw ? new Date(validUntilRaw) : null,
         status,
+        isProforma:
+          formData.get("isProforma") === "on" ||
+          formData.get("isProforma") === "1",
         notes: String(formData.get("notes") ?? "").trim() || null,
         conditions: String(formData.get("conditions") ?? "").trim() || null,
         discountPct,
@@ -288,6 +294,7 @@ export async function duplicateQuote(id: string) {
       issueDate: today,
       validUntil,
       status: "BORRADOR",
+      isProforma: source.isProforma,
       notes: source.notes,
       conditions: source.conditions,
       discountPct: source.discountPct,

@@ -52,6 +52,7 @@ export default async function EditQuotePage({
             ? quote.validUntil.toISOString().slice(0, 10)
             : "",
           status: quote.status,
+          isProforma: quote.isProforma,
           notes: quote.notes ?? "",
           conditions: quote.conditions ?? "",
           discountPct: quote.discountPct,

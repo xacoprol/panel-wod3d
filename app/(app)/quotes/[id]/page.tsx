@@ -5,6 +5,7 @@ import { formatCurrency, formatDate, calculateDocument } from "@/lib/calculation
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { convertQuoteToInvoice, deleteQuote } from "../actions";
 import { SendDocumentButton } from "@/components/documents/SendDocumentButton";
+import { quoteKindLabel } from "@/lib/quote-kind";
 
 export default async function QuoteDetailPage({
   params,
@@ -21,6 +22,8 @@ export default async function QuoteDetailPage({
     },
   });
   if (!quote) notFound();
+
+  const kind = quoteKindLabel(quote.isProforma);
 
   const totals = calculateDocument(
     quote.lines.map((l) => ({
@@ -44,7 +47,10 @@ export default async function QuoteDetailPage({
           <h1 className="mt-2 font-mono text-2xl font-semibold tracking-tight">
             {quote.fullNumber}
           </h1>
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {quote.isProforma ? (
+              <span className="badge bg-accent-soft text-accent">Proforma</span>
+            ) : null}
             <StatusBadge status={quote.status} />
             <span className="text-sm text-ink-muted">
               {quote.client.name} · {formatDate(quote.issueDate)}
@@ -71,7 +77,7 @@ export default async function QuoteDetailPage({
             </Link>
           )}
           <Link href={`/api/quotes/${id}/pdf`} className="btn-secondary" target="_blank">
-            PDF
+            PDF {kind}
           </Link>
         </div>
       </div>

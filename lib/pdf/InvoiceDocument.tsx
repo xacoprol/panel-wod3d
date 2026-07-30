@@ -515,7 +515,9 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
   const totalLabel =
     title.toUpperCase() === "FACTURA"
       ? "Total Factura (€)"
-      : "Total Presupuesto (€)";
+      : title.toUpperCase() === "PROFORMA"
+        ? "Total Proforma (€)"
+        : "Total Presupuesto (€)";
 
   const issuerAddress = [
     issuer.addressStreet,

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 type ShellProps = {
-  docKind: "Presupuesto" | "Factura";
+  docKind: "Presupuesto" | "Proforma" | "Factura";
   numberLabel?: string;
   subtitle?: string;
   children: ReactNode;

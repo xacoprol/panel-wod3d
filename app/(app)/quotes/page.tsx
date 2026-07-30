@@ -71,6 +71,7 @@ export default async function QuotesPage({
     issueDate: qrow.issueDate.toISOString(),
     validUntil: qrow.validUntil?.toISOString() ?? null,
     status: qrow.status,
+    isProforma: qrow.isProforma,
     notes: qrow.notes,
     discountPct: qrow.discountPct,
     subtotal: Number(qrow.subtotal),
@@ -92,7 +93,7 @@ export default async function QuotesPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Presupuestos</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Crea, envía y convierte en factura
+            Presupuestos y proformas · convierte en factura cuando toque
           </p>
         </div>
         <Link href="/quotes/new" className="btn-primary">
