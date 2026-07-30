@@ -68,7 +68,7 @@ export default async function FiscalPage({
         <p className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           Este trimestre no tiene gastos registrados.{" "}
           <Link
-            href="/fiscal/expenses/new"
+            href="/fiscal/expenses"
             className="font-medium underline"
           >
             Añade facturas recibidas

@@ -6,6 +6,7 @@ import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
 import { LiveSearch } from "@/components/ui/LiveSearch";
+import { ExpenseDropZone } from "@/components/fiscal/ExpenseDropZone";
 import { deleteExpense } from "./actions";
 
 const categoryLabel = (id: string) =>
@@ -51,10 +52,12 @@ export default async function ExpensesPage({
             Facturas recibidas para IVA soportado y modelo 130
           </p>
         </div>
-        <Link href="/fiscal/expenses/new" className="btn-primary">
-          Nuevo gasto
+        <Link href="/fiscal/expenses/new" className="btn-ghost text-sm">
+          Alta manual
         </Link>
       </div>
+
+      <ExpenseDropZone />
 
       <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
         <LiveSearch placeholder="Buscar proveedor, NIF o concepto…" />

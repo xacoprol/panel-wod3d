@@ -1,17 +1,18 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import type { Expense } from "@prisma/client";
 import { VAT_RATES } from "@/lib/calculations";
 import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
 import { DateInput } from "@/components/ui/DateInput";
+import { ExpenseDropZone } from "@/components/fiscal/ExpenseDropZone";
 import {
   createExpense,
   updateExpense,
   type ExpenseFormState,
 } from "@/app/(app)/fiscal/expenses/actions";
-import { parseExpenseFromUpload } from "@/app/(app)/fiscal/expenses/parse-actions";
 import type { ParsedExpenseDraft } from "@/lib/gemini-expense";
+import { consumeExpenseDraft } from "@/lib/expense-draft-storage";
 
 type Props = {
   expense?: Expense;
@@ -49,10 +50,7 @@ export function ExpenseForm({ expense }: Props) {
   const [notes, setNotes] = useState(expense?.notes ?? "");
   const [deductible, setDeductible] = useState(expense?.deductible ?? true);
   const [dateKey, setDateKey] = useState(0);
-
-  const [parseError, setParseError] = useState<string | null>(null);
   const [parseInfo, setParseInfo] = useState<string | null>(null);
-  const [parsing, startParse] = useTransition();
 
   const vatAmount = useMemo(
     () => Math.round(subtotal * (vatRate / 100) * 100) / 100,
@@ -84,22 +82,12 @@ export function ExpenseForm({ expense }: Props) {
     );
   }
 
-  function onFileChange(file: File | null) {
-    setParseError(null);
-    setParseInfo(null);
-    if (!file) return;
-    const fd = new FormData();
-    fd.set("file", file);
-    startParse(() => {
-      void parseExpenseFromUpload(fd).then((res) => {
-        if (!res.ok) {
-          setParseError(res.error);
-          return;
-        }
-        applyDraft(res.draft);
-      });
-    });
-  }
+  useEffect(() => {
+    if (expense) return;
+    const draft = consumeExpenseDraft();
+    if (draft) applyDraft(draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
+  }, [expense]);
 
   return (
     <form action={formAction} className="mx-auto max-w-2xl space-y-5">
@@ -110,29 +98,8 @@ export function ExpenseForm({ expense }: Props) {
       ) : null}
 
       {!expense ? (
-        <section className="card-panel space-y-3 p-5 sm:p-6">
-          <div>
-            <h2 className="form-section-title">Subir factura</h2>
-            <p className="form-section-hint">
-              PDF o foto (JPG/PNG). Gemini lee el documento y rellena el
-              formulario; tú revisas y guardas.
-            </p>
-          </div>
-          <input
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp,image/gif"
-            className="input cursor-pointer file:mr-3 file:rounded-md file:border-0 file:bg-accent-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-accent"
-            disabled={parsing || pending}
-            onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-          />
-          {parsing ? (
-            <p className="text-sm text-ink-muted">Leyendo factura…</p>
-          ) : null}
-          {parseError ? (
-            <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
-              {parseError}
-            </p>
-          ) : null}
+        <section className="space-y-3">
+          <ExpenseDropZone compact onParsed={applyDraft} />
           {parseInfo ? (
             <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
               {parseInfo}
@@ -324,7 +291,7 @@ export function ExpenseForm({ expense }: Props) {
         </div>
       </section>
 
-      <button type="submit" className="btn-primary" disabled={pending || parsing}>
+      <button type="submit" className="btn-primary" disabled={pending}>
         {pending ? "Guardando…" : expense ? "Guardar cambios" : "Registrar gasto"}
       </button>
     </form>

@@ -38,7 +38,7 @@ export function ModeloDraft({ title, model, summary }: Props) {
           Aún no hay gastos en este trimestre. Sin ellos el IVA soportado y los
           gastos del 130 van a 0, y el importe a ingresar sale más alto de lo
           real.{" "}
-          <Link href="/fiscal/expenses/new" className="font-medium underline">
+          <Link href="/fiscal/expenses" className="font-medium underline">
             Registrar gastos
           </Link>
         </p>
