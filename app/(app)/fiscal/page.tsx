@@ -158,6 +158,7 @@ export default async function FiscalPage({
             )}
             {(summary.issued.baseExenta > 0 ||
               summary.issued.baseIntracom > 0 ||
+              summary.issued.baseCanarias > 0 ||
               summary.issued.baseExport > 0) && (
               <>
                 {summary.issued.baseExenta > 0 ? (
@@ -174,6 +175,15 @@ export default async function FiscalPage({
                     <td className="px-4 py-2">Intracomunitaria</td>
                     <td className="px-4 py-2 text-right font-mono">
                       {formatCurrency(summary.issued.baseIntracom)}
+                    </td>
+                    <td className="px-4 py-2 text-right">—</td>
+                  </tr>
+                ) : null}
+                {summary.issued.baseCanarias > 0 ? (
+                  <tr className="border-b border-line/50 text-ink-muted">
+                    <td className="px-4 py-2">Canarias</td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {formatCurrency(summary.issued.baseCanarias)}
                     </td>
                     <td className="px-4 py-2 text-right">—</td>
                   </tr>

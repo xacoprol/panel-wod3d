@@ -33,6 +33,7 @@ const LEGAL_LABELS: Record<string, string> = {
   SUJETA: "Sujeta a IVA",
   EXENTA: "Exenta",
   INTRACOMUNITARIA: "Intracomunitaria",
+  CANARIAS: "Canarias",
   EXPORTACION: "Exportación",
 };
 

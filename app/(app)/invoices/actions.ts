@@ -11,12 +11,24 @@ import {
   paymentTotals,
   syncInvoicePaymentStatus,
 } from "@/lib/invoice-payments";
+import {
+  isZeroVatOperation,
+  parseVatOperationType,
+} from "@/lib/recurring";
 
 export type DocFormState = { error?: string };
 
 function parseLines(formData: FormData): LineInput[] {
   const raw = String(formData.get("linesJson") ?? "[]");
   return (JSON.parse(raw) as LineInput[]).filter((l) => l.description?.trim());
+}
+
+function applyVatOperationToLines(
+  lines: LineInput[],
+  vatOperationType: string
+): LineInput[] {
+  if (!isZeroVatOperation(vatOperationType)) return lines;
+  return lines.map((l) => ({ ...l, vatRate: 0 }));
 }
 
 async function createInvoiceLines(
@@ -49,7 +61,10 @@ export async function createInvoice(
   try {
     const clientId = String(formData.get("clientId") ?? "");
     const seriesId = String(formData.get("seriesId") ?? "") || undefined;
-    const lines = parseLines(formData);
+    const vatOperationType = parseVatOperationType(
+      formData.get("vatOperationType")
+    );
+    const lines = applyVatOperationToLines(parseLines(formData), vatOperationType);
     const irpfRate = parseFloat(String(formData.get("irpfRate") ?? "0")) || 0;
 
     if (!clientId) return { error: "Selecciona un cliente" };
@@ -78,6 +93,7 @@ export async function createInvoice(
         paymentMethod:
           String(formData.get("paymentMethod") ?? "").trim() || "Transferencia",
         notes: String(formData.get("notes") ?? "").trim() || null,
+        vatOperationType,
         subtotal: totals.subtotal,
         vatAmount: totals.vatAmount,
         irpfRate: totals.irpfRate,
@@ -112,7 +128,10 @@ export async function updateInvoice(
     }
 
     const clientId = String(formData.get("clientId") ?? "");
-    const lines = parseLines(formData);
+    const vatOperationType = parseVatOperationType(
+      formData.get("vatOperationType")
+    );
+    const lines = applyVatOperationToLines(parseLines(formData), vatOperationType);
     const irpfRate = parseFloat(String(formData.get("irpfRate") ?? "0")) || 0;
     if (!clientId) return { error: "Selecciona un cliente" };
     if (!lines.length) return { error: "Añade al menos una línea" };
@@ -133,6 +152,7 @@ export async function updateInvoice(
         paymentMethod:
           String(formData.get("paymentMethod") ?? "").trim() || "Transferencia",
         notes: String(formData.get("notes") ?? "").trim() || null,
+        vatOperationType,
         subtotal: totals.subtotal,
         vatAmount: totals.vatAmount,
         irpfRate: totals.irpfRate,

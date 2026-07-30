@@ -19,6 +19,10 @@ import {
 } from "@/app/(app)/invoices/actions";
 import { DateInput } from "@/components/ui/DateInput";
 import { calculateDocument, formatCurrency } from "@/lib/calculations";
+import {
+  isZeroVatOperation,
+  VAT_OPERATION_TYPES,
+} from "@/lib/recurring";
 
 type SeriesOption = {
   id: string;
@@ -39,6 +43,7 @@ type InvoiceData = {
   paymentMethod: string;
   notes: string;
   irpfRate: number;
+  vatOperationType: string;
   lines: EditorLine[];
 };
 
@@ -83,6 +88,9 @@ export function InvoiceForm({
   const [irpfRate, setIrpfRate] = useState(
     invoice?.irpfRate ?? defaultIrpfRate
   );
+  const [vatOperationType, setVatOperationType] = useState(
+    invoice?.vatOperationType ?? "SUJETA"
+  );
   const defaultSeriesId =
     series.find((s) => s.isDefault)?.id ?? series[0]?.id ?? "";
   const [selectedSeriesId, setSelectedSeriesId] = useState(
@@ -96,6 +104,19 @@ export function InvoiceForm({
     () => calculateDocument(lines, irpfRate),
     [lines, irpfRate]
   );
+
+  function onVatOperationChange(next: string) {
+    setVatOperationType(next);
+    if (isZeroVatOperation(next)) {
+      setLines((prev) => prev.map((l) => ({ ...l, vatRate: 0 })));
+    } else {
+      setLines((prev) =>
+        prev.map((l) =>
+          l.vatRate === 0 ? { ...l, vatRate: defaultVatRate } : l
+        )
+      );
+    }
+  }
 
   const numberLabel = invoice?.fullNumber ?? preview ?? undefined;
 
@@ -206,6 +227,28 @@ export function InvoiceForm({
               <p className="mt-1 text-xs text-ink-muted">
                 Transferencia: IBAN de Ajustes · Bizum: teléfono configurado en
                 Ajustes
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="vatOperationType">
+                Tipo de operación IVA
+              </label>
+              <select
+                id="vatOperationType"
+                name="vatOperationType"
+                className="input"
+                value={vatOperationType}
+                onChange={(e) => onVatOperationChange(e.target.value)}
+              >
+                {VAT_OPERATION_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-ink-muted">
+                Intracomunitaria y Canarias no llevan IVA peninsular (0 %). Así
+                Fiscal las separa del IVA repercutido del 303.
               </p>
             </div>
           </div>

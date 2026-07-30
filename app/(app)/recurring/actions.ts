@@ -8,6 +8,8 @@ import { requireAuth } from "@/lib/session";
 import type { LineInput } from "@/lib/calculations";
 import {
   computeInitialNextRun,
+  isZeroVatOperation,
+  parseVatOperationType,
   type Frequency,
 } from "@/lib/recurring";
 
@@ -42,9 +44,9 @@ function parseTemplateFields(formData: FormData) {
   const startDate = parseLocalDate(String(formData.get("startDate") ?? ""));
   const endRaw = String(formData.get("endDate") ?? "").trim();
   const endDate = endRaw ? parseLocalDate(endRaw) : null;
-  const vatOperationType = String(
-    formData.get("vatOperationType") ?? "SUJETA"
-  ).toUpperCase();
+  const vatOperationType = parseVatOperationType(
+    formData.get("vatOperationType")
+  );
 
   return {
     name: String(formData.get("name") ?? "").trim(),
@@ -93,10 +95,7 @@ export async function createRecurring(
       data.endDate
     );
 
-    const forceZeroVat =
-      data.vatOperationType === "EXENTA" ||
-      data.vatOperationType === "INTRACOMUNITARIA" ||
-      data.vatOperationType === "EXPORTACION";
+    const forceZeroVat = isZeroVatOperation(data.vatOperationType);
 
     // Neon HTTP: sin nested create (requiere transacción)
     const template = await prisma.recurringInvoiceTemplate.create({
@@ -170,10 +169,7 @@ export async function updateRecurring(
       data.endDate
     );
 
-    const forceZeroVat =
-      data.vatOperationType === "EXENTA" ||
-      data.vatOperationType === "INTRACOMUNITARIA" ||
-      data.vatOperationType === "EXPORTACION";
+    const forceZeroVat = isZeroVatOperation(data.vatOperationType);
 
     await prisma.recurringLine.deleteMany({ where: { templateId: id } });
     await prisma.recurringInvoiceTemplate.update({

@@ -195,7 +195,7 @@ model Invoice {
   total         Decimal
 
   // Fiscal / IVA classification
-  vatOperationType String  @default("SUJETA") // SUJETA | EXENTA | INTRACOMUNITARIA | EXPORTACION
+  vatOperationType String  @default("SUJETA") // SUJETA | EXENTA | INTRACOMUNITARIA | CANARIAS | EXPORTACION
   cashAccounting   Boolean @default(false) // criterio de caja
   operationKey     String? // clave operación (ej. modelo 303)
   operationKey347  String? // clave operación modelo 347
@@ -289,24 +289,26 @@ model CatalogItem {
 // ─── Fiscal: facturas recibidas / gastos ─────────────────────────────────────
 
 model Expense {
-  id           String   @id @default(cuid())
-  issueDate    DateTime
-  supplierName String
-  supplierNif  String?
-  description  String?
-  category     String   @default("OTROS") // SUMINISTROS | SOFTWARE | MATERIAL | DIETAS | PROFESIONALES | OTROS
-  subtotal     Decimal
-  vatRate      Float    @default(21)
-  vatAmount    Decimal
-  total        Decimal
-  deductible   Boolean  @default(true) // IVA deducible / gasto computable 130
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(cuid())
+  issueDate      DateTime
+  supplierName   String
+  supplierNif    String?
+  invoiceNumber  String?  // nº factura del proveedor (detectar duplicados)
+  description    String?
+  category       String   @default("OTROS") // SUMINISTROS | SOFTWARE | MATERIAL | DIETAS | PROFESIONALES | OTROS
+  subtotal       Decimal
+  vatRate        Float    @default(21)
+  vatAmount      Decimal
+  total          Decimal
+  deductible     Boolean  @default(true) // IVA deducible / gasto computable 130
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([issueDate])
   @@index([category])
   @@index([supplierName])
+  @@index([invoiceNumber])
 }
 
 // ─── Recurring invoices ─────────────────────────────────────────────────────
@@ -327,7 +329,7 @@ model RecurringInvoiceTemplate {
   paymentMethod String?
   bankIban     String?
   irpfRate     Float     @default(0)
-  vatOperationType String  @default("SUJETA") // SUJETA | EXENTA | INTRACOMUNITARIA | EXPORTACION
+  vatOperationType String  @default("SUJETA") // SUJETA | EXENTA | INTRACOMUNITARIA | CANARIAS | EXPORTACION
   cashAccounting   Boolean @default(false)
   operationKey     String?
   operationKey347  String?

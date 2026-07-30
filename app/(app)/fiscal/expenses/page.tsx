@@ -27,6 +27,7 @@ export default async function ExpensesPage({
           { supplierName: { contains: query, mode: "insensitive" as const } },
           { description: { contains: query, mode: "insensitive" as const } },
           { supplierNif: { contains: query, mode: "insensitive" as const } },
+          { invoiceNumber: { contains: query, mode: "insensitive" as const } },
         ],
       }
     : undefined;
@@ -60,7 +61,7 @@ export default async function ExpensesPage({
       <ExpenseDropZone />
 
       <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
-        <LiveSearch placeholder="Buscar proveedor, NIF o concepto…" />
+        <LiveSearch placeholder="Buscar proveedor, NIF, nº factura o concepto…" />
       </Suspense>
 
       <div className="card-panel overflow-x-auto">
@@ -69,6 +70,9 @@ export default async function ExpensesPage({
             <tr>
               <th className="px-4 py-3 font-medium">Fecha</th>
               <th className="px-4 py-3 font-medium">Proveedor</th>
+              <th className="hidden px-4 py-3 font-medium md:table-cell">
+                Nº factura
+              </th>
               <th className="hidden px-4 py-3 font-medium sm:table-cell">
                 Categoría
               </th>
@@ -84,7 +88,7 @@ export default async function ExpensesPage({
             {expenses.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-4 py-10 text-center text-ink-muted"
                 >
                   No hay gastos{query ? " con ese criterio" : ""}.{" "}
@@ -114,6 +118,9 @@ export default async function ExpensesPage({
                         No deducible
                       </span>
                     ) : null}
+                  </td>
+                  <td className="hidden px-4 py-3 font-mono text-ink-muted md:table-cell">
+                    {e.invoiceNumber ?? "—"}
                   </td>
                   <td className="hidden px-4 py-3 text-ink-muted sm:table-cell">
                     {categoryLabel(e.category)}

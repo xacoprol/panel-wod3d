@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import type { Expense } from "@prisma/client";
 import { VAT_RATES } from "@/lib/calculations";
@@ -42,6 +43,9 @@ export function ExpenseForm({ expense }: Props) {
     expense?.supplierName ?? ""
   );
   const [supplierNif, setSupplierNif] = useState(expense?.supplierNif ?? "");
+  const [invoiceNumber, setInvoiceNumber] = useState(
+    expense?.invoiceNumber ?? ""
+  );
   const [description, setDescription] = useState(expense?.description ?? "");
   const [subtotal, setSubtotal] = useState(
     expense ? Number(expense.subtotal) : 0
@@ -67,6 +71,7 @@ export function ExpenseForm({ expense }: Props) {
     setCategory(draft.category);
     setSupplierName(draft.supplierName);
     setSupplierNif(draft.supplierNif ?? "");
+    setInvoiceNumber(draft.invoiceNumber ?? "");
     setDescription(draft.description ?? "");
     setSubtotal(draft.subtotal);
     setVatRate(draft.vatRate);
@@ -94,6 +99,17 @@ export function ExpenseForm({ expense }: Props) {
       {state.error ? (
         <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
           {state.error}
+          {state.duplicateId ? (
+            <>
+              {" "}
+              <Link
+                href={`/fiscal/expenses/${state.duplicateId}/edit`}
+                className="font-medium underline"
+              >
+                Abrir el existente
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -181,6 +197,24 @@ export function ExpenseForm({ expense }: Props) {
               placeholder="Opcional"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="invoiceNumber">
+            Nº factura proveedor
+          </label>
+          <input
+            id="invoiceNumber"
+            name="invoiceNumber"
+            className="input font-mono"
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+            placeholder="Ej. F-2026-0042"
+          />
+          <p className="mt-1 text-xs text-ink-muted">
+            Si se registra dos veces la misma factura del mismo proveedor, se
+            bloquea el alta.
+          </p>
         </div>
 
         <div>

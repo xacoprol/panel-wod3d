@@ -9,6 +9,7 @@ import {
   type RecurringListRow,
 } from "@/components/recurring/RecurringTable";
 import { LiveSearch } from "@/components/ui/LiveSearch";
+import { isZeroVatOperation } from "@/lib/recurring";
 import type { Prisma } from "@prisma/client";
 
 function templateTotal(t: {
@@ -22,10 +23,7 @@ function templateTotal(t: {
     discountPct: number;
   }[];
 }): number {
-  const forceZeroVat =
-    t.vatOperationType === "EXENTA" ||
-    t.vatOperationType === "INTRACOMUNITARIA" ||
-    t.vatOperationType === "EXPORTACION";
+  const forceZeroVat = isZeroVatOperation(t.vatOperationType);
   const { total } = calculateDocument(
     t.lines.map((l) => ({
       description: l.description,

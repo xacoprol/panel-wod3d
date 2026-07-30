@@ -47,6 +47,20 @@ export default async function InvoiceDetailPage({
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <StatusBadge status={invoice.status} />
+            {invoice.vatOperationType &&
+            invoice.vatOperationType !== "SUJETA" ? (
+              <span className="badge bg-accent-soft text-accent">
+                {invoice.vatOperationType === "INTRACOMUNITARIA"
+                  ? "Intracomunitaria"
+                  : invoice.vatOperationType === "CANARIAS"
+                    ? "Canarias"
+                    : invoice.vatOperationType === "EXPORTACION"
+                      ? "Exportación"
+                      : invoice.vatOperationType === "EXENTA"
+                        ? "Exenta"
+                        : invoice.vatOperationType}
+              </span>
+            ) : null}
             <span className="text-sm text-ink-muted">
               {invoice.client.name} · {formatDate(invoice.issueDate)}
             </span>

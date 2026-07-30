@@ -23,6 +23,7 @@ export type FiscalPeriodSummary = {
     baseExenta: number;
     baseIntracom: number;
     baseExport: number;
+    baseCanarias: number;
     /** IRPF retenido por clientes en facturas emitidas */
     irpfWithheld: number;
     /** Ingresos computables ≈ bases (sin IVA) de facturas no anuladas */
@@ -143,6 +144,7 @@ export async function buildFiscalPeriodSummary(
   let baseExenta = 0;
   let baseIntracom = 0;
   let baseExport = 0;
+  let baseCanarias = 0;
   let irpfWithheld = 0;
   let incomeBase = 0;
 
@@ -158,6 +160,10 @@ export async function buildFiscalPeriodSummary(
     }
     if (op === "INTRACOMUNITARIA") {
       baseIntracom = round2(baseIntracom + subtotal);
+      continue;
+    }
+    if (op === "CANARIAS") {
+      baseCanarias = round2(baseCanarias + subtotal);
       continue;
     }
     if (op === "EXPORTACION") {
@@ -303,6 +309,7 @@ export async function buildFiscalPeriodSummary(
       baseExenta,
       baseIntracom,
       baseExport,
+      baseCanarias,
       irpfWithheld,
       incomeBase,
     },

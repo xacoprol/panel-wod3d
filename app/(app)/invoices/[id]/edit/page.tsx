@@ -62,6 +62,7 @@ export default async function EditInvoicePage({
           paymentMethod: invoice.paymentMethod ?? "",
           notes: invoice.notes ?? "",
           irpfRate: invoice.irpfRate,
+          vatOperationType: invoice.vatOperationType,
           lines: invoice.lines.map((l) => ({
             id: l.id,
             description: l.description,

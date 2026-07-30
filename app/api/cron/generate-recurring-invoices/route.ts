@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateDocument, formatCurrency } from "@/lib/calculations";
 import { allocateInvoiceNumber } from "@/lib/numbering";
-import { advanceDate, type Frequency } from "@/lib/recurring";
+import { advanceDate, isZeroVatOperation, type Frequency } from "@/lib/recurring";
 import { isSmtpConfigured, sendMail } from "@/lib/mail";
 import { parseISO, isValid } from "date-fns";
 
@@ -130,10 +130,7 @@ async function runGeneration(asOf: Date) {
 
     for (const tpl of templates) {
       try {
-        const forceZeroVat =
-          tpl.vatOperationType === "EXENTA" ||
-          tpl.vatOperationType === "INTRACOMUNITARIA" ||
-          tpl.vatOperationType === "EXPORTACION";
+        const forceZeroVat = isZeroVatOperation(tpl.vatOperationType);
 
         const lineInputs = tpl.lines.map((l) => ({
           description: l.description,

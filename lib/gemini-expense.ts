@@ -4,6 +4,7 @@ export type ParsedExpenseDraft = {
   issueDate: string; // YYYY-MM-DD
   supplierName: string;
   supplierNif: string | null;
+  invoiceNumber: string | null;
   description: string | null;
   category: string;
   subtotal: number;
@@ -232,6 +233,7 @@ function parseDraftFromText(text: string): ParsedExpenseDraft {
     issueDate: normalizeDate(parsed.issueDate),
     supplierName,
     supplierNif: String(parsed.supplierNif ?? "").trim() || null,
+    invoiceNumber: String(parsed.invoiceNumber ?? "").trim() || null,
     description: String(parsed.description ?? "").trim() || null,
     category: normalizeCategory(parsed.category),
     subtotal,
@@ -270,6 +272,7 @@ Devuelve SOLO un JSON válido con esta forma exacta:
   "issueDate": "YYYY-MM-DD",
   "supplierName": "nombre del emisor/proveedor",
   "supplierNif": "NIF/CIF del proveedor o null",
+  "invoiceNumber": "número de factura del proveedor o null",
   "description": "concepto breve en español o null",
   "category": "una de: ${categories}",
   "subtotal": 0,
@@ -283,6 +286,7 @@ Devuelve SOLO un JSON válido con esta forma exacta:
 Reglas:
 - Importes en euros (número, no string). Usa punto decimal.
 - subtotal = base imponible (sin IVA). vatAmount = cuota IVA. total = a pagar.
+- invoiceNumber = nº de factura/ticket del emisor (Factura nº, Nº, Invoice #…). Si no se lee, null.
 - Si hay varios tipos de IVA, usa el predominante o el del total; anótalo en notes.
 - Si no hay IVA (exento), vatRate=0, vatAmount=0, total=subtotal.
 - No inventes NIF: si no se lee claramente, null.

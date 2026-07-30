@@ -75,8 +75,28 @@ export function computeInitialNextRun(
 }
 
 export const VAT_OPERATION_TYPES = [
-  { value: "SUJETA", label: "Sujeta a IVA" },
+  { value: "SUJETA", label: "Sujeta a IVA (península / Baleares)" },
   { value: "EXENTA", label: "Exenta de IVA" },
-  { value: "INTRACOMUNITARIA", label: "Intracomunitaria" },
-  { value: "EXPORTACION", label: "Exportación" },
+  { value: "INTRACOMUNITARIA", label: "Intracomunitaria (UE)" },
+  { value: "CANARIAS", label: "Canarias (sin IVA peninsular)" },
+  { value: "EXPORTACION", label: "Exportación (fuera UE)" },
 ] as const;
+
+export type VatOperationType = (typeof VAT_OPERATION_TYPES)[number]["value"];
+
+/** Operaciones que no llevan cuota de IVA en factura peninsular. */
+export function isZeroVatOperation(op: string): boolean {
+  const v = op.toUpperCase();
+  return (
+    v === "EXENTA" ||
+    v === "INTRACOMUNITARIA" ||
+    v === "CANARIAS" ||
+    v === "EXPORTACION"
+  );
+}
+
+export function parseVatOperationType(raw: unknown): VatOperationType {
+  const v = String(raw ?? "SUJETA").toUpperCase();
+  const allowed = VAT_OPERATION_TYPES.map((t) => t.value) as string[];
+  return (allowed.includes(v) ? v : "SUJETA") as VatOperationType;
+}
