@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     gap: 10,
   },
-  docBarSpacer: { width: 128 },
+  docBarSpacer: { flex: 1 },
   docBar: {
     flex: 1,
     flexDirection: "row",
@@ -159,13 +159,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 16,
     gap: 10,
+    alignItems: "stretch",
   },
-  metaCol: { width: 128 },
+  metaCol: {
+    flex: 1,
+    justifyContent: "flex-start",
+  },
   fieldBox: {
     borderWidth: 1,
     borderColor: LINE,
     borderRadius: R,
     marginBottom: 8,
+    backgroundColor: SURFACE,
+  },
+  fieldBoxLast: {
+    borderWidth: 1,
+    borderColor: LINE,
+    borderRadius: R,
+    marginBottom: 0,
     backgroundColor: SURFACE,
   },
   fieldLabel: {
@@ -406,6 +417,10 @@ function num(n: number, digits = 2): string {
   }).format(n || 0);
 }
 
+function money(n: number): string {
+  return `${num(n)} €`;
+}
+
 function formatClientTaxId(client: PdfParty): string {
   const nif = (client.nif || "").trim();
   const code = (client.countryCode || "").toUpperCase();
@@ -535,12 +550,12 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
         <View style={styles.metaRow}>
           <View style={styles.metaCol}>
             <View style={styles.fieldBox}>
-              <Text style={styles.fieldLabel}>C.I.F. / N.I.F.</Text>
-              <Text style={styles.fieldValue}>{formatClientTaxId(client)}</Text>
-            </View>
-            <View style={styles.fieldBox}>
               <Text style={styles.fieldLabel}>Fecha</Text>
               <Text style={styles.fieldValue}>{issueDate}</Text>
+            </View>
+            <View style={styles.fieldBoxLast}>
+              <Text style={styles.fieldLabel}>C.I.F. / N.I.F.</Text>
+              <Text style={styles.fieldValue}>{formatClientTaxId(client)}</Text>
             </View>
           </View>
           <View style={styles.clientBox}>
@@ -582,9 +597,9 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
               <View key={i} style={rowStyle} wrap={false}>
                 <Text style={styles.colDesc}>{l.description}</Text>
                 <Text style={styles.colQty}>{num(l.quantity)}</Text>
-                <Text style={styles.colPrice}>{num(l.unitPrice)}</Text>
+                <Text style={styles.colPrice}>{money(l.unitPrice)}</Text>
                 <Text style={styles.colDisc}>{num(l.discountPct)}%</Text>
-                <Text style={styles.colTotal}>{num(l.lineSubtotal)}</Text>
+                <Text style={styles.colTotal}>{money(l.lineSubtotal)}</Text>
               </View>
             );
           })}
@@ -595,7 +610,7 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
             <View style={styles.dualField}>
               <Text style={styles.dualLabel}>Dto. Especial</Text>
               <Text style={styles.dualPct}>{num(specialDiscountPct)}%</Text>
-              <Text style={styles.dualAmt}>{num(specialDiscountAmount)}</Text>
+              <Text style={styles.dualAmt}>{money(specialDiscountAmount)}</Text>
             </View>
             <View style={styles.dualField}>
               <Text style={styles.dualLabel}>Dto. Pronto Pago</Text>
@@ -603,7 +618,7 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
                 {num(earlyPaymentDiscountPct)}%
               </Text>
               <Text style={styles.dualAmt}>
-                {num(earlyPaymentDiscountAmount)}
+                {money(earlyPaymentDiscountAmount)}
               </Text>
             </View>
             <View style={styles.fieldBox}>
@@ -633,25 +648,25 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
           <View style={styles.bottomRight}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Base Imponible</Text>
-              <Text style={styles.totalValue}>{num(subtotal)}</Text>
+              <Text style={styles.totalValue}>{money(subtotal)}</Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>
                 Total I.V.A. ({num(vatRate)}%)
               </Text>
-              <Text style={styles.totalValue}>{num(vatAmount)}</Text>
+              <Text style={styles.totalValue}>{money(vatAmount)}</Text>
             </View>
             {irpfAmount > 0 ? (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>
                   I.R.P.F. (−{num(irpfRate)}%)
                 </Text>
-                <Text style={styles.totalValue}>−{num(irpfAmount)}</Text>
+                <Text style={styles.totalValue}>−{money(irpfAmount)}</Text>
               </View>
             ) : null}
             <View style={styles.totalRow}>
               <Text style={styles.totalFinalLabel}>{totalLabel}</Text>
-              <Text style={styles.totalFinalValue}>{num(total)}</Text>
+              <Text style={styles.totalFinalValue}>{money(total)}</Text>
             </View>
           </View>
         </View>
