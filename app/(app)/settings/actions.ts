@@ -70,6 +70,8 @@ export async function updateSettings(
     emailBody: String(formData.get("emailBody") ?? "").trim(),
     bankIban: String(formData.get("bankIban") ?? "").trim() || null,
     bankName: String(formData.get("bankName") ?? "").trim() || null,
+    bizumPhone:
+      String(formData.get("bizumPhone") ?? "").trim() || "603024030",
     themeBg: sanitizeHex(
       String(formData.get("themeBg") ?? ""),
       DEFAULT_THEME.themeBg

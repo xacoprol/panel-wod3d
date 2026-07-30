@@ -177,6 +177,21 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
                 defaultValue={settings.bankIban ?? ""}
               />
             </div>
+            <div>
+              <label className="label" htmlFor="bizumPhone">
+                Teléfono Bizum
+              </label>
+              <input
+                id="bizumPhone"
+                name="bizumPhone"
+                className="input font-mono"
+                defaultValue={settings.bizumPhone ?? "603024030"}
+                placeholder="603024030"
+              />
+              <p className="mt-1 text-xs text-ink-muted">
+                Se muestra en facturas si el método de pago es Bizum
+              </p>
+            </div>
           </div>
         </section>
 

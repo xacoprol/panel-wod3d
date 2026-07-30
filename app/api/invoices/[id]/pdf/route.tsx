@@ -76,10 +76,12 @@ export async function GET(
       irpfRate={invoice.irpfRate}
       irpfAmount={Number(invoice.irpfAmount)}
       total={Number(invoice.total)}
-      paymentMethod={invoice.paymentMethod}
+      paymentMethod={invoice.paymentMethod || "Transferencia"}
       notes={invoice.notes}
       bankIban={settings.bankIban}
       bankName={settings.bankName}
+      bizumPhone={settings.bizumPhone}
+      showPayment
     />
   );
 

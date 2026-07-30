@@ -72,7 +72,7 @@ export async function createInvoice(
         dueDate: dueRaw ? new Date(dueRaw) : null,
         status: "PENDIENTE",
         paymentMethod:
-          String(formData.get("paymentMethod") ?? "").trim() || null,
+          String(formData.get("paymentMethod") ?? "").trim() || "Transferencia",
         notes: String(formData.get("notes") ?? "").trim() || null,
         subtotal: totals.subtotal,
         vatAmount: totals.vatAmount,
@@ -127,7 +127,7 @@ export async function updateInvoice(
         dueDate: dueRaw ? new Date(dueRaw) : null,
         status,
         paymentMethod:
-          String(formData.get("paymentMethod") ?? "").trim() || null,
+          String(formData.get("paymentMethod") ?? "").trim() || "Transferencia",
         notes: String(formData.get("notes") ?? "").trim() || null,
         subtotal: totals.subtotal,
         vatAmount: totals.vatAmount,

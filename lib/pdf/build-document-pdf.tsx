@@ -31,8 +31,6 @@ export async function buildQuotePdf(
     quote.discountPct
   );
 
-  const paymentFromNotes = quote.notes?.match(/Forma de cobro:\s*(.+)/i)?.[1];
-
   const doc = (
     <InvoicePdfDocument
       title="PRESUPUESTO"
@@ -77,7 +75,7 @@ export async function buildQuotePdf(
       total={Number(quote.total)}
       specialDiscountPct={totals.discountPct}
       specialDiscountAmount={totals.discountAmount}
-      paymentMethod={paymentFromNotes?.trim() || null}
+      showPayment={false}
       notes={
         [quote.notes, quote.conditions]
           .filter(Boolean)
@@ -85,8 +83,6 @@ export async function buildQuotePdf(
           .replace(/Forma de cobro:\s*.+/i, "")
           .trim() || null
       }
-      bankIban={settings.bankIban}
-      bankName={settings.bankName}
     />
   );
 
@@ -158,10 +154,12 @@ export async function buildInvoicePdf(
       irpfRate={invoice.irpfRate}
       irpfAmount={Number(invoice.irpfAmount)}
       total={Number(invoice.total)}
-      paymentMethod={invoice.paymentMethod}
+      paymentMethod={invoice.paymentMethod || "Transferencia"}
       notes={invoice.notes}
       bankIban={settings.bankIban}
       bankName={settings.bankName}
+      bizumPhone={settings.bizumPhone}
+      showPayment
     />
   );
 

@@ -41,6 +41,7 @@ model CompanySettings {
   emailBody       String   @default("Adjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}")
   bankIban        String?
   bankName        String?
+  bizumPhone      String?  @default("603024030")
 
   // UX theme (CSS variables)
   themeBg           String @default("#F3F1F8")

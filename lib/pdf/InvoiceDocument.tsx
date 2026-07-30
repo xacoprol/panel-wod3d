@@ -48,6 +48,9 @@ export type InvoicePdfProps = {
   paymentMethod?: string | null;
   bankIban?: string | null;
   bankName?: string | null;
+  bizumPhone?: string | null;
+  /** Si false, no muestra forma de pago (p. ej. presupuestos). */
+  showPayment?: boolean;
   logoUrl?: string | null;
   brandName?: string | null;
   specialDiscountPct?: number;
@@ -126,33 +129,43 @@ const styles = StyleSheet.create({
   docBar: {
     flex: 1,
     flexDirection: "row",
+    alignItems: "stretch",
     borderWidth: 1,
     borderColor: LINE,
     borderRadius: R,
   },
   docLabel: {
     backgroundColor: ACCENT,
+    minWidth: 118,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    borderTopLeftRadius: R,
+    borderBottomLeftRadius: R,
+  },
+  docLabelText: {
     color: SURFACE,
     fontFamily: "Helvetica-Bold",
     fontSize: 9,
     letterSpacing: 0.5,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    minWidth: 118,
     textAlign: "center",
-    borderTopLeftRadius: R,
-    borderBottomLeftRadius: R,
   },
   docNumber: {
     flex: 1,
     backgroundColor: SOFT,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    borderTopRightRadius: R,
+    borderBottomRightRadius: R,
+  },
+  docNumberText: {
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
     color: INK,
-    borderTopRightRadius: R,
-    borderBottomRightRadius: R,
+    textAlign: "center",
   },
 
   metaRow: {
@@ -436,6 +449,24 @@ function formatClientTaxId(client: PdfParty): string {
   return nif;
 }
 
+function formatPaymentLines(opts: {
+  paymentMethod?: string | null;
+  bankIban?: string | null;
+  bankName?: string | null;
+  bizumPhone?: string | null;
+}): string {
+  const method = (opts.paymentMethod ?? "Transferencia").trim() || "Transferencia";
+  const isBizum = /bizum/i.test(method);
+  if (isBizum) {
+    const phone = (opts.bizumPhone ?? "603024030").trim() || "603024030";
+    return `Bizum al ${phone}`;
+  }
+  const lines = ["Transferencia bancaria"];
+  if (opts.bankName?.trim()) lines.push(opts.bankName.trim());
+  if (opts.bankIban?.trim()) lines.push(`IBAN: ${opts.bankIban.trim()}`);
+  return lines.join("\n");
+}
+
 function primaryVatRate(lines: PdfLine[]): number {
   if (!lines.length) return 0;
   const rates = new Map<number, number>();
@@ -470,6 +501,8 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
     paymentMethod,
     bankIban,
     bankName,
+    bizumPhone,
+    showPayment = true,
     logoUrl,
     brandName = "Empresa",
     specialDiscountPct = 0,
@@ -542,8 +575,12 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
         <View style={styles.docBarRow}>
           <View style={styles.docBarSpacer} />
           <View style={styles.docBar}>
-            <Text style={styles.docLabel}>{title.toUpperCase()}</Text>
-            <Text style={styles.docNumber}>{number}</Text>
+            <View style={styles.docLabel}>
+              <Text style={styles.docLabelText}>{title.toUpperCase()}</Text>
+            </View>
+            <View style={styles.docNumber}>
+              <Text style={styles.docNumberText}>{number}</Text>
+            </View>
           </View>
         </View>
 
@@ -621,27 +658,22 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
                 {money(earlyPaymentDiscountAmount)}
               </Text>
             </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.fieldLabel}>Forma de pago</Text>
-              <Text style={styles.fieldValue}>
-                {paymentMethod ||
-                  (bankIban
-                    ? `Transferencia${bankName ? ` (${bankName})` : ""}`
-                    : "—")}
-              </Text>
-            </View>
+            {showPayment ? (
+              <View style={styles.fieldBox}>
+                <Text style={styles.fieldLabel}>Forma de pago</Text>
+                <Text style={styles.fieldValue}>
+                  {formatPaymentLines({
+                    paymentMethod,
+                    bankIban,
+                    bankName,
+                    bizumPhone,
+                  })}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.obsBox}>
               <Text style={styles.obsLabel}>Observaciones</Text>
-              <Text style={styles.obsBody}>
-                {[
-                  notes,
-                  bankIban && paymentMethod?.toLowerCase().includes("transf")
-                    ? `IBAN: ${bankIban}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join("\n") || " "}
-              </Text>
+              <Text style={styles.obsBody}>{notes?.trim() || " "}</Text>
             </View>
           </View>
 

@@ -43,9 +43,6 @@ export async function GET(
     quote.discountPct
   );
 
-  // Forma de cobro desde notas importadas si existe
-  const paymentFromNotes = quote.notes?.match(/Forma de cobro:\s*(.+)/i)?.[1];
-
   const doc = (
     <InvoicePdfDocument
       title="PRESUPUESTO"
@@ -90,7 +87,7 @@ export async function GET(
       total={Number(quote.total)}
       specialDiscountPct={totals.discountPct}
       specialDiscountAmount={totals.discountAmount}
-      paymentMethod={paymentFromNotes?.trim() || null}
+      showPayment={false}
       notes={
         [quote.notes, quote.conditions]
           .filter(Boolean)
@@ -98,8 +95,6 @@ export async function GET(
           .replace(/Forma de cobro:\s*.+/i, "")
           .trim() || null
       }
-      bankIban={settings.bankIban}
-      bankName={settings.bankName}
     />
   );
 

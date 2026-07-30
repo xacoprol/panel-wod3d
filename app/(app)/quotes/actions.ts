@@ -193,6 +193,7 @@ export async function convertQuoteToInvoice(quoteId: string) {
       issueDate: new Date(),
       dueDate: due,
       status: "PENDIENTE",
+      paymentMethod: "Transferencia",
       notes: quote.notes,
       subtotal: totals.subtotal,
       vatAmount: totals.vatAmount,

@@ -190,13 +190,23 @@ export function InvoiceForm({
               <label className="label" htmlFor="paymentMethod">
                 Método de pago
               </label>
-              <input
+              <select
                 id="paymentMethod"
                 name="paymentMethod"
                 className="input"
-                placeholder="Transferencia, efectivo…"
-                defaultValue={invoice?.paymentMethod ?? ""}
-              />
+                defaultValue={
+                  invoice?.paymentMethod?.toLowerCase().includes("bizum")
+                    ? "Bizum"
+                    : "Transferencia"
+                }
+              >
+                <option value="Transferencia">Transferencia</option>
+                <option value="Bizum">Bizum</option>
+              </select>
+              <p className="mt-1 text-xs text-ink-muted">
+                Transferencia: IBAN de Ajustes · Bizum: teléfono configurado en
+                Ajustes
+              </p>
             </div>
           </div>
         </DocumentFormSection>
