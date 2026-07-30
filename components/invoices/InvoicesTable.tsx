@@ -13,6 +13,11 @@ import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { SendDocumentModal } from "@/components/documents/SendDocumentModal";
+import { deleteInvoices } from "@/app/(app)/invoices/actions";
+import {
+  BulkDeleteConfirmModal,
+  BulkSelectionBar,
+} from "@/components/ui/BulkDelete";
 
 export type InvoiceListRow = {
   id: string;
@@ -180,6 +185,8 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
   const [visible, setVisible] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [colsOpen, setColsOpen] = useState(false);
   const [sendId, setSendId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
     null
@@ -257,6 +264,25 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
     () => COLUMNS.filter((c) => visible.includes(c.id)),
     [visible]
   );
+
+  const allSelected =
+    invoices.length > 0 && invoices.every((i) => selectedIds.has(i.id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      if (invoices.every((i) => prev.has(i.id))) return new Set();
+      return new Set(invoices.map((i) => i.id));
+    });
+  }
 
   const menuInv = menuId
     ? invoices.find((i) => i.id === menuId) ?? null
@@ -355,6 +381,23 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
         onClose={() => setSendId(null)}
         onSent={() => router.refresh()}
       />
+      <BulkDeleteConfirmModal
+        count={selectedIds.size}
+        entityLabel={selectedIds.size === 1 ? "factura" : "facturas"}
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        description="Si alguna era la última de su serie, el número puede reutilizarse."
+        onConfirm={async () => {
+          await deleteInvoices([...selectedIds]);
+          setSelectedIds(new Set());
+          router.refresh();
+        }}
+      />
+      <BulkSelectionBar
+        count={selectedIds.size}
+        onClear={() => setSelectedIds(new Set())}
+        onDelete={() => setBulkDeleteOpen(true)}
+      />
       {mounted &&
         menuInv &&
         menuPos &&
@@ -401,6 +444,16 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
             <tr>
+              <th className="w-10 px-3 py-3">
+                <input
+                  type="checkbox"
+                  className="align-middle"
+                  checked={allSelected}
+                  disabled={invoices.length === 0}
+                  onChange={toggleSelectAll}
+                  aria-label="Seleccionar todas"
+                />
+              </th>
               {activeCols.map((c) => (
                 <th
                   key={c.id}
@@ -457,7 +510,7 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
             {invoices.length === 0 ? (
               <tr>
                 <td
-                  colSpan={activeCols.length + 1}
+                  colSpan={activeCols.length + 2}
                   className="px-4 py-10 text-center text-ink-muted"
                 >
                   No hay facturas.{" "}
@@ -470,9 +523,23 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
               invoices.map((inv) => (
                 <tr
                   key={inv.id}
-                  className="group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  className={`group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40 ${
+                    selectedIds.has(inv.id) ? "bg-accent-soft/30" : ""
+                  }`}
                   onClick={() => router.push(`/invoices/${inv.id}`)}
                 >
+                  <td
+                    className="px-3 py-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      className="align-middle"
+                      checked={selectedIds.has(inv.id)}
+                      onChange={() => toggleSelected(inv.id)}
+                      aria-label={`Seleccionar ${inv.fullNumber}`}
+                    />
+                  </td>
                   {activeCols.map((c) => (
                     <td
                       key={c.id}

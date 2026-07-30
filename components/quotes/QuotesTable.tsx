@@ -15,12 +15,17 @@ import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   convertQuoteToInvoice,
+  deleteQuotes,
   duplicateQuote,
   setQuoteStatus,
 } from "@/app/(app)/quotes/actions";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { SendDocumentModal } from "@/components/documents/SendDocumentModal";
 import { DeleteQuoteConfirmModal } from "@/components/quotes/DeleteQuoteButton";
+import {
+  BulkDeleteConfirmModal,
+  BulkSelectionBar,
+} from "@/components/ui/BulkDelete";
 
 export type QuoteListRow = {
   id: string;
@@ -298,6 +303,8 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
   );
   const [sendId, setSendId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<QuoteListRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -380,6 +387,30 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
     ? quotes.find((q) => q.id === menuId) ?? null
     : null;
 
+  const deletableIds = useMemo(
+    () => quotes.filter((q) => !q.invoiceId).map((q) => q.id),
+    [quotes]
+  );
+
+  const allDeletableSelected =
+    deletableIds.length > 0 && deletableIds.every((id) => selectedIds.has(id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      if (deletableIds.every((id) => prev.has(id))) return new Set();
+      return new Set(deletableIds);
+    });
+  }
+
   function run(action: () => Promise<unknown>) {
     startTransition(() => {
       void action()
@@ -444,6 +475,31 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
         onClose={() => setDeleteTarget(null)}
         onDeleted={() => router.refresh()}
       />
+      <BulkDeleteConfirmModal
+        count={selectedIds.size}
+        entityLabel={
+          selectedIds.size === 1 ? "presupuesto" : "presupuestos"
+        }
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        description="Los que ya están convertidos en factura se omiten."
+        onConfirm={async () => {
+          const result = await deleteQuotes([...selectedIds]);
+          setSelectedIds(new Set());
+          router.refresh();
+          if (result.skipped > 0 && result.deleted === 0) {
+            throw new Error(
+              "No se pudo eliminar: ya convertidos en factura"
+            );
+          }
+        }}
+      />
+      <BulkSelectionBar
+        count={selectedIds.size}
+        onClear={() => setSelectedIds(new Set())}
+        onDelete={() => setBulkDeleteOpen(true)}
+        disabled={pending}
+      />
       {mounted &&
       menuQuote &&
       menuPos &&
@@ -507,6 +563,21 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
             <tr>
+              <th className="w-10 px-3 py-3">
+                <input
+                  type="checkbox"
+                  className="align-middle"
+                  checked={allDeletableSelected}
+                  disabled={deletableIds.length === 0}
+                  onChange={toggleSelectAll}
+                  aria-label="Seleccionar todos"
+                  title={
+                    deletableIds.length === 0
+                      ? "No hay presupuestos eliminables"
+                      : "Seleccionar todos"
+                  }
+                />
+              </th>
               {activeCols.map((c) => (
                 <th
                   key={c.id}
@@ -563,7 +634,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
             {quotes.length === 0 ? (
               <tr>
                 <td
-                  colSpan={activeCols.length + 1}
+                  colSpan={activeCols.length + 2}
                   className="px-4 py-10 text-center text-ink-muted"
                 >
                   No hay presupuestos.{" "}
@@ -576,9 +647,29 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
               quotes.map((q) => (
                 <tr
                   key={q.id}
-                  className="group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  className={`group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40 ${
+                    selectedIds.has(q.id) ? "bg-accent-soft/30" : ""
+                  }`}
                   onClick={() => router.push(`/quotes/${q.id}`)}
                 >
+                  <td
+                    className="px-3 py-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      className="align-middle"
+                      checked={selectedIds.has(q.id)}
+                      disabled={Boolean(q.invoiceId)}
+                      onChange={() => toggleSelected(q.id)}
+                      aria-label={`Seleccionar ${q.fullNumber}`}
+                      title={
+                        q.invoiceId
+                          ? "Ya convertido en factura"
+                          : undefined
+                      }
+                    />
+                  </td>
                   {activeCols.map((c) => (
                     <td
                       key={c.id}

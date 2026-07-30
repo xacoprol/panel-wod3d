@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { deleteRecurrings } from "@/app/(app)/recurring/actions";
+import {
+  BulkDeleteConfirmModal,
+  BulkSelectionBar,
+} from "@/components/ui/BulkDelete";
 
 export type RecurringListRow = {
   id: string;
@@ -102,6 +107,8 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
   const router = useRouter();
   const [visible, setVisible] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [colsOpen, setColsOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const colsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -134,12 +141,58 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
     [visible]
   );
 
+  const allSelected =
+    rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      if (rows.every((r) => prev.has(r.id))) return new Set();
+      return new Set(rows.map((r) => r.id));
+    });
+  }
+
   return (
     <div className="card-panel overflow-visible">
+      <BulkDeleteConfirmModal
+        count={selectedIds.size}
+        entityLabel={selectedIds.size === 1 ? "periódica" : "periódicas"}
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        description="Las facturas ya generadas se conservan."
+        onConfirm={async () => {
+          await deleteRecurrings([...selectedIds]);
+          setSelectedIds(new Set());
+          router.refresh();
+        }}
+      />
+      <BulkSelectionBar
+        count={selectedIds.size}
+        onClear={() => setSelectedIds(new Set())}
+        onDelete={() => setBulkDeleteOpen(true)}
+      />
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
             <tr>
+              <th className="w-10 px-3 py-3">
+                <input
+                  type="checkbox"
+                  className="align-middle"
+                  checked={allSelected}
+                  disabled={rows.length === 0}
+                  onChange={toggleSelectAll}
+                  aria-label="Seleccionar todas"
+                />
+              </th>
               {activeCols.map((c) => (
                 <th
                   key={c.id}
@@ -196,7 +249,7 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={activeCols.length + 1}
+                  colSpan={activeCols.length + 2}
                   className="px-4 py-10 text-center text-ink-muted"
                 >
                   Sin facturas periódicas.{" "}
@@ -209,9 +262,23 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
               rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  className={`group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40 ${
+                    selectedIds.has(row.id) ? "bg-accent-soft/30" : ""
+                  }`}
                   onClick={() => router.push(`/recurring/${row.id}`)}
                 >
+                  <td
+                    className="px-3 py-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      className="align-middle"
+                      checked={selectedIds.has(row.id)}
+                      onChange={() => toggleSelected(row.id)}
+                      aria-label={`Seleccionar ${row.name}`}
+                    />
+                  </td>
                   {activeCols.map((c) => (
                     <td
                       key={c.id}

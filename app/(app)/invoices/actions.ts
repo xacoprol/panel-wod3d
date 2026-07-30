@@ -260,16 +260,14 @@ export async function annulInvoice(id: string) {
 /**
  * Elimina la factura y recalcula el correlativo de la serie
  * (si era la última, el próximo número vuelve a ser el suyo).
+ * Nota: no usar updateMany aquí — con PrismaNeonHTTP falla
+ * ("Transactions are not supported in HTTP mode"). El FK
+ * previousInvoiceId ya es ON DELETE SET NULL.
  */
 export async function deleteInvoice(id: string) {
   await requireAuth();
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice) throw new Error("Factura no encontrada");
-
-  await prisma.invoice.updateMany({
-    where: { previousInvoiceId: id },
-    data: { previousInvoiceId: null },
-  });
 
   await prisma.invoice.delete({ where: { id } });
   await syncInvoiceSeriesNextNumber(prisma, invoice.seriesId, invoice.number);
@@ -277,4 +275,30 @@ export async function deleteInvoice(id: string) {
   revalidatePath("/invoices");
   revalidatePath("/dashboard");
   redirect("/invoices");
+}
+
+export async function deleteInvoices(ids: string[]) {
+  await requireAuth();
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return { deleted: 0 };
+
+  const invoices = await prisma.invoice.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, seriesId: true, number: true },
+  });
+  if (!invoices.length) return { deleted: 0 };
+
+  const idList = invoices.map((i) => i.id);
+  // deleteMany no usa transacción interna (a diferencia de updateMany).
+  // Los previousInvoiceId hijos quedan a null por ON DELETE SET NULL.
+  await prisma.invoice.deleteMany({ where: { id: { in: idList } } });
+
+  const seriesIds = [...new Set(invoices.map((i) => i.seriesId))];
+  for (const seriesId of seriesIds) {
+    await syncInvoiceSeriesNextNumber(prisma, seriesId);
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath("/dashboard");
+  return { deleted: idList.length };
 }

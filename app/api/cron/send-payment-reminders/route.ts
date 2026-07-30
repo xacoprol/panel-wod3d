@@ -51,14 +51,15 @@ async function runReminders(asOf: Date) {
   );
   const overdueSince = subDays(dayStart, 7);
 
-  // Mark overdue pending invoices
-  await prisma.invoice.updateMany({
-    where: {
-      status: "PENDIENTE",
-      dueDate: { lt: dayStart },
-    },
-    data: { status: "VENCIDA" },
-  });
+  // Mark overdue pending invoices.
+  // Evitar updateMany: PrismaNeonHTTP lo envuelve en transacción y falla.
+  await prisma.$executeRaw`
+    UPDATE "Invoice"
+    SET status = 'VENCIDA', "updatedAt" = NOW()
+    WHERE status = 'PENDIENTE'
+      AND "dueDate" IS NOT NULL
+      AND "dueDate" < ${dayStart}
+  `;
 
   const candidates = await prisma.invoice.findMany({
     where: {

@@ -320,3 +320,25 @@ export async function deleteQuote(id: string) {
   redirect("/quotes");
 }
 
+export async function deleteQuotes(ids: string[]) {
+  await requireAuth();
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return { deleted: 0, skipped: 0 };
+
+  const blocked = await prisma.invoice.findMany({
+    where: { quoteId: { in: unique } },
+    select: { quoteId: true },
+  });
+  const blockedIds = new Set(
+    blocked.flatMap((b) => (b.quoteId ? [b.quoteId] : []))
+  );
+  const deletable = unique.filter((id) => !blockedIds.has(id));
+
+  if (deletable.length) {
+    await prisma.quote.deleteMany({ where: { id: { in: deletable } } });
+  }
+
+  revalidatePath("/quotes");
+  return { deleted: deletable.length, skipped: blockedIds.size };
+}
+
