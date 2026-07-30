@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import {
-  calculateDocument,
-  formatCurrency,
-  formatDate,
-} from "@/lib/calculations";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { calculateDocument } from "@/lib/calculations";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
+import {
+  RecurringTable,
+  type RecurringListRow,
+} from "@/components/recurring/RecurringTable";
 
 function templateTotal(t: {
   irpfRate: number;
@@ -64,6 +63,18 @@ export default async function RecurringPage({
     }),
   ]);
 
+  const rows: RecurringListRow[] = templates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    clientName: t.client.name,
+    frequency: t.frequency,
+    startDate: t.startDate.toISOString(),
+    endDate: t.endDate?.toISOString() ?? null,
+    nextRunDate: t.nextRunDate?.toISOString() ?? null,
+    status: t.status,
+    total: templateTotal(t),
+  }));
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -80,69 +91,16 @@ export default async function RecurringPage({
         </Link>
       </div>
 
-      <div className="card-panel overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-line bg-line/20 text-xs uppercase text-ink-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Cliente</th>
-              <th className="px-4 py-3 font-medium">Frecuencia</th>
-              <th className="px-4 py-3 font-medium">Próxima</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {templates.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-ink-muted">
-                  Sin facturas periódicas.{" "}
-                  <Link href="/recurring/new" className="text-accent underline">
-                    Crear una
-                  </Link>
-                </td>
-              </tr>
-            ) : (
-              templates.map((t) => (
-                <tr
-                  key={t.id}
-                  className="relative border-b border-line/60 hover:bg-accent-soft/40"
-                >
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/recurring/${t.id}`}
-                      className="after:absolute after:inset-0 hover:text-accent"
-                    >
-                      {t.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{t.client.name}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={t.frequency} />
-                  </td>
-                  <td className="px-4 py-3 text-ink-muted">
-                    {formatDate(t.nextRunDate)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={t.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(templateTotal(t))}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        <Pagination
-          basePath="/recurring"
-          params={{}}
-          page={meta.page}
-          totalPages={meta.totalPages}
-          total={meta.total}
-          pageSize={meta.pageSize}
-        />
-      </div>
+      <RecurringTable rows={rows} />
+
+      <Pagination
+        basePath="/recurring"
+        params={{}}
+        page={meta.page}
+        totalPages={meta.totalPages}
+        total={meta.total}
+        pageSize={meta.pageSize}
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
