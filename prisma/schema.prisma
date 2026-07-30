@@ -43,16 +43,16 @@ model CompanySettings {
   bankName        String?
 
   // UX theme (CSS variables)
-  themeBg           String @default("#f3efe6")
-  themeBgElevated   String @default("#faf7f0")
-  themeInk          String @default("#1a2332")
-  themeInkMuted     String @default("#5c6b7a")
-  themeLine         String @default("#d4cbb8")
-  themeAccent       String @default("#0d6e6e")
-  themeAccentHover  String @default("#0a5858")
-  themeAccentSoft   String @default("#e0f0ef")
-  themeSidebar      String @default("#1a2332")
-  themeSidebarText  String @default("#e8e4db")
+  themeBg           String @default("#F3F1F8")
+  themeBgElevated   String @default("#FFFFFF")
+  themeInk          String @default("#1A1528")
+  themeInkMuted     String @default("#6B6578")
+  themeLine         String @default("#E2DEEA")
+  themeAccent       String @default("#7B2CFE")
+  themeAccentHover  String @default("#6518E0")
+  themeAccentSoft   String @default("#EFE8FF")
+  themeSidebar      String @default("#17122A")
+  themeSidebarText  String @default("#EDE9F6")
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

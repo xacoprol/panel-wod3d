@@ -34,6 +34,136 @@ function newLine(vatRate = 21): EditorLine {
   };
 }
 
+function LineFields({
+  line,
+  calcSubtotal,
+  onUpdate,
+  onMove,
+  onRemove,
+  canRemove,
+}: {
+  line: EditorLine;
+  calcSubtotal: number;
+  onUpdate: (patch: Partial<EditorLine>) => void;
+  onMove: (dir: -1 | 1) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  return (
+    <>
+      <div className="min-w-0 flex-1">
+        <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+          Concepto
+        </label>
+        <input
+          className="input"
+          value={line.description}
+          onChange={(e) => onUpdate({ description: e.target.value })}
+          placeholder="Descripción del servicio o producto"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:contents">
+        <div className="md:w-20">
+          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+            Cant.
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className="input text-right"
+            value={line.quantity}
+            onChange={(e) =>
+              onUpdate({ quantity: parseFloat(e.target.value) || 0 })
+            }
+          />
+        </div>
+        <div className="md:w-28">
+          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+            Precio
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className="input text-right"
+            value={line.unitPrice}
+            onChange={(e) =>
+              onUpdate({ unitPrice: parseFloat(e.target.value) || 0 })
+            }
+          />
+        </div>
+        <div className="md:w-20">
+          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+            Dto %
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            max="100"
+            className="input text-right"
+            value={line.discountPct}
+            onChange={(e) =>
+              onUpdate({ discountPct: parseFloat(e.target.value) || 0 })
+            }
+          />
+        </div>
+        <div className="md:w-24">
+          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+            IVA %
+          </label>
+          <select
+            className="input"
+            value={line.vatRate}
+            onChange={(e) =>
+              onUpdate({ vatRate: parseFloat(e.target.value) })
+            }
+          >
+            {VAT_RATES.map((r) => (
+              <option key={r} value={r}>
+                {r}%
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 md:w-28 md:justify-end">
+        <span className="font-mono text-sm font-medium tabular-nums">
+          {formatCurrency(calcSubtotal)}
+        </span>
+        <div className="flex shrink-0 gap-0.5">
+          <button
+            type="button"
+            className="btn-ghost px-1.5 py-1 text-xs"
+            onClick={() => onMove(-1)}
+            title="Subir"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className="btn-ghost px-1.5 py-1 text-xs"
+            onClick={() => onMove(1)}
+            title="Bajar"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            className="btn-ghost px-1.5 py-1 text-xs text-danger"
+            onClick={onRemove}
+            disabled={!canRemove}
+            title="Eliminar"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function LineItemsEditor({
   lines,
   onChange,
@@ -69,213 +199,131 @@ export function LineItemsEditor({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-line/25 text-xs uppercase tracking-wide text-ink-muted">
-            <tr>
-              <th className="px-2 py-2 text-left font-medium">Concepto</th>
-              <th className="w-20 px-2 py-2 text-right font-medium">Cant.</th>
-              <th className="w-28 px-2 py-2 text-right font-medium">Precio</th>
-              <th className="w-20 px-2 py-2 text-right font-medium">Dto %</th>
-              <th className="w-24 px-2 py-2 text-right font-medium">IVA %</th>
-              <th className="w-28 px-2 py-2 text-right font-medium">Importe</th>
-              <th className="w-24 px-2 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line, i) => {
-              const calc = totals.lines[i];
-              return (
-                <tr key={line.id} className="border-t border-line/60">
-                  <td className="px-2 py-1.5">
-                    <input
-                      className="input"
-                      value={line.description}
-                      onChange={(e) =>
-                        update(line.id, { description: e.target.value })
-                      }
-                      placeholder="Descripción del servicio o producto"
-                    />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="input text-right"
-                      value={line.quantity}
-                      onChange={(e) =>
-                        update(line.id, {
-                          quantity: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="input text-right"
-                      value={line.unitPrice}
-                      onChange={(e) =>
-                        update(line.id, {
-                          unitPrice: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      className="input text-right"
-                      value={line.discountPct}
-                      onChange={(e) =>
-                        update(line.id, {
-                          discountPct: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <select
-                      className="input"
-                      value={line.vatRate}
-                      onChange={(e) =>
-                        update(line.id, {
-                          vatRate: parseFloat(e.target.value),
-                        })
-                      }
-                    >
-                      {VAT_RATES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}%
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-mono text-xs">
-                    {formatCurrency(calc?.lineSubtotal ?? 0)}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <div className="flex justify-end gap-0.5">
-                      <button
-                        type="button"
-                        className="btn-ghost px-1.5 py-1 text-xs"
-                        onClick={() => move(line.id, -1)}
-                        title="Subir"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-ghost px-1.5 py-1 text-xs"
-                        onClick={() => move(line.id, 1)}
-                        title="Bajar"
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-ghost px-1.5 py-1 text-xs text-danger"
-                        onClick={() => remove(line.id)}
-                        title="Eliminar"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-0">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="space-y-3">
+          {/* Desktop header */}
+          <div className="hidden gap-2 px-1 text-xs font-medium uppercase tracking-wide text-ink-muted md:flex md:items-center">
+            <span className="min-w-0 flex-1">Concepto</span>
+            <span className="w-20 text-right">Cant.</span>
+            <span className="w-28 text-right">Precio</span>
+            <span className="w-20 text-right">Dto %</span>
+            <span className="w-24 text-right">IVA %</span>
+            <span className="w-28 text-right">Importe</span>
+          </div>
 
-      <button
-        type="button"
-        className="btn-secondary"
-        onClick={() => onChange([...lines, newLine(defaultVatRate)])}
-      >
-        + Añadir línea
-      </button>
-
-      <div className="ml-auto max-w-xs space-y-2 rounded-lg border border-line bg-bg-elevated p-4 text-sm">
-        {showGlobalDiscount ? (
-          <div className="flex items-center justify-between gap-3">
-            <label className="text-ink-muted" htmlFor="discountPct">
-              Dto. general{" "}
-              <input
-                id="discountPct"
-                type="number"
-                min={0}
-                max={100}
-                step={0.01}
-                className="ml-1 w-16 rounded border border-line bg-transparent px-1 text-right font-mono"
-                value={globalDiscountPct}
-                onChange={(e) =>
-                  onGlobalDiscountChange?.(parseFloat(e.target.value) || 0)
-                }
-              />
-              %
-            </label>
-            <span className="font-mono text-danger">
-              −{formatCurrency(totals.discountAmount)}
-            </span>
-          </div>
-        ) : null}
-        {showGlobalDiscount && totals.discountAmount > 0 ? (
-          <div className="flex justify-between text-xs text-ink-muted">
-            <span>Base bruta</span>
-            <span className="font-mono">
-              {formatCurrency(totals.grossSubtotal)}
-            </span>
-          </div>
-        ) : null}
-        <div className="flex justify-between">
-          <span className="text-ink-muted">Base imponible</span>
-          <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
-        </div>
-        {totals.vatBreakdown.map((v) => (
-          <div key={v.rate} className="flex justify-between">
-            <span className="text-ink-muted">IVA {v.rate}%</span>
-            <span className="font-mono">{formatCurrency(v.amount)}</span>
-          </div>
-        ))}
-        {showIrpf && (
-          <div className="flex items-center justify-between gap-3 border-t border-line pt-2">
-            <label className="text-ink-muted">
-              IRPF{" "}
-              <select
-                className="ml-1 rounded border border-line bg-transparent px-1"
-                value={irpfRate}
-                onChange={(e) =>
-                  onIrpfChange?.(parseFloat(e.target.value) || 0)
-                }
+          {lines.map((line, i) => {
+            const calc = totals.lines[i];
+            return (
+              <div
+                key={line.id}
+                className="rounded-xl border border-line bg-bg p-3 transition hover:border-accent/30 hover:bg-accent-soft/20 md:flex md:items-start md:gap-2 md:bg-transparent md:p-2 md:hover:bg-accent-soft/30"
               >
-                {[0, 7, 15].map((r) => (
-                  <option key={r} value={r}>
-                    {r}%
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="font-mono text-danger">
-              −{formatCurrency(totals.irpfAmount)}
-            </span>
-          </div>
-        )}
-        <div className="flex justify-between border-t border-line pt-2 text-base font-semibold">
-          <span>Total</span>
-          <span className="font-mono">{formatCurrency(totals.total)}</span>
+                <LineFields
+                  line={line}
+                  calcSubtotal={calc?.lineSubtotal ?? 0}
+                  onUpdate={(patch) => update(line.id, patch)}
+                  onMove={(dir) => move(line.id, dir)}
+                  onRemove={() => remove(line.id)}
+                  canRemove={lines.length > 1}
+                />
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-bg/50 px-4 py-3.5 text-sm font-medium text-ink-muted transition hover:border-accent hover:bg-accent-soft/40 hover:text-accent"
+            onClick={() => onChange([...lines, newLine(defaultVatRate)])}
+          >
+            + Añadir línea
+          </button>
         </div>
+
+        <aside className="h-fit space-y-3 rounded-xl border border-line bg-accent-soft/35 p-4 text-sm lg:sticky lg:top-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Resumen
+          </p>
+          {showGlobalDiscount ? (
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-ink-muted" htmlFor="discountPct">
+                Dto. general
+              </label>
+              <div className="flex items-center gap-1">
+                <input
+                  id="discountPct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  className="w-16 rounded-md border border-line bg-bg-elevated px-1.5 py-1 text-right font-mono text-sm"
+                  value={globalDiscountPct}
+                  onChange={(e) =>
+                    onGlobalDiscountChange?.(parseFloat(e.target.value) || 0)
+                  }
+                />
+                <span className="text-ink-muted">%</span>
+              </div>
+            </div>
+          ) : null}
+          {showGlobalDiscount && totals.discountAmount > 0 ? (
+            <>
+              <div className="flex justify-between text-xs text-ink-muted">
+                <span>Base bruta</span>
+                <span className="font-mono">
+                  {formatCurrency(totals.grossSubtotal)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-muted">Descuento</span>
+                <span className="font-mono text-danger">
+                  −{formatCurrency(totals.discountAmount)}
+                </span>
+              </div>
+            </>
+          ) : null}
+          <div className="flex justify-between">
+            <span className="text-ink-muted">Base imponible</span>
+            <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
+          </div>
+          {totals.vatBreakdown.map((v) => (
+            <div key={v.rate} className="flex justify-between">
+              <span className="text-ink-muted">IVA {v.rate}%</span>
+              <span className="font-mono">{formatCurrency(v.amount)}</span>
+            </div>
+          ))}
+          {showIrpf && (
+            <div className="flex items-center justify-between gap-3 border-t border-line/80 pt-2">
+              <label className="text-ink-muted">
+                IRPF{" "}
+                <select
+                  className="ml-1 rounded-md border border-line bg-bg-elevated px-1 py-0.5"
+                  value={irpfRate}
+                  onChange={(e) =>
+                    onIrpfChange?.(parseFloat(e.target.value) || 0)
+                  }
+                >
+                  {[0, 7, 15].map((r) => (
+                    <option key={r} value={r}>
+                      {r}%
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="font-mono text-danger">
+                −{formatCurrency(totals.irpfAmount)}
+              </span>
+            </div>
+          )}
+          <div className="border-t border-line/80 pt-3">
+            <p className="text-xs text-ink-muted">Total</p>
+            <p className="font-mono text-2xl font-semibold tracking-tight text-accent">
+              {formatCurrency(totals.total)}
+            </p>
+          </div>
+        </aside>
       </div>
 
-      {/* Hidden fields for server actions */}
       <input type="hidden" name="linesJson" value={JSON.stringify(lines)} />
       {showIrpf && (
         <input type="hidden" name="irpfRate" value={String(irpfRate)} />

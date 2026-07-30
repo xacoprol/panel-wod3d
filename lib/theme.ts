@@ -1,14 +1,14 @@
 export const DEFAULT_THEME = {
-  themeBg: "#f3efe6",
-  themeBgElevated: "#faf7f0",
-  themeInk: "#1a2332",
-  themeInkMuted: "#5c6b7a",
-  themeLine: "#d4cbb8",
-  themeAccent: "#0d6e6e",
-  themeAccentHover: "#0a5858",
-  themeAccentSoft: "#e0f0ef",
-  themeSidebar: "#1a2332",
-  themeSidebarText: "#e8e4db",
+  themeBg: "#F3F1F8",
+  themeBgElevated: "#FFFFFF",
+  themeInk: "#1A1528",
+  themeInkMuted: "#6B6578",
+  themeLine: "#E2DEEA",
+  themeAccent: "#7B2CFE",
+  themeAccentHover: "#6518E0",
+  themeAccentSoft: "#EFE8FF",
+  themeSidebar: "#17122A",
+  themeSidebarText: "#EDE9F6",
 };
 
 export type ThemeColors = {

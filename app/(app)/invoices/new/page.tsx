@@ -34,28 +34,21 @@ export default async function NewInvoicePage({
     seriesOptions.find((s) => s.isDefault) ?? seriesOptions[0];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <Link href="/invoices" className="text-sm text-ink-muted hover:text-accent">
-          ← Facturas
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          Nueva factura
-        </h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          El número se reserva al guardar (correlativo sin huecos)
-        </p>
-      </div>
-      <div className="card-panel p-6">
-        <InvoiceForm
-          clients={clients}
-          series={seriesOptions}
-          defaultClientId={clientId}
-          defaultVatRate={settings?.defaultVatRate ?? 21}
-          defaultIrpfRate={settings?.defaultIrpfRate ?? 15}
-          nextNumberPreview={defaultSeries?.nextNumberPreview}
-        />
-      </div>
+    <div className="mx-auto max-w-5xl space-y-4">
+      <Link
+        href="/invoices"
+        className="inline-block text-sm text-ink-muted hover:text-accent"
+      >
+        ← Facturas
+      </Link>
+      <InvoiceForm
+        clients={clients}
+        series={seriesOptions}
+        defaultClientId={clientId}
+        defaultVatRate={settings?.defaultVatRate ?? 21}
+        defaultIrpfRate={settings?.defaultIrpfRate ?? 15}
+        nextNumberPreview={defaultSeries?.nextNumberPreview}
+      />
     </div>
   );
 }

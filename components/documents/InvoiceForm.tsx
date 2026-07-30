@@ -1,17 +1,23 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   LineItemsEditor,
   createEmptyLines,
   type EditorLine,
 } from "@/components/documents/LineItemsEditor";
 import {
+  DocumentFormSection,
+  DocumentFormShell,
+  DocumentFormStickyBar,
+} from "@/components/documents/DocumentFormShell";
+import {
   createInvoice,
   updateInvoice,
   type DocFormState,
 } from "@/app/(app)/invoices/actions";
 import { DateInput } from "@/components/ui/DateInput";
+import { calculateDocument, formatCurrency } from "@/lib/calculations";
 
 type ClientOption = { id: string; name: string };
 type SeriesOption = {
@@ -81,141 +87,174 @@ export function InvoiceForm({
   );
   const defaultSeriesId =
     series.find((s) => s.isDefault)?.id ?? series[0]?.id ?? "";
-  const [selectedSeriesId, setSelectedSeriesId] = useState(defaultSeriesId);
+  const [selectedSeriesId, setSelectedSeriesId] = useState(
+    invoice?.seriesId ?? defaultSeriesId
+  );
   const selectedSeries = series.find((s) => s.id === selectedSeriesId);
   const preview =
     selectedSeries?.nextNumberPreview ?? nextNumberPreview;
 
+  const totals = useMemo(
+    () => calculateDocument(lines, irpfRate),
+    [lines, irpfRate]
+  );
+
+  const numberLabel = invoice?.fullNumber ?? preview ?? undefined;
+
   return (
-    <form action={formAction} className="space-y-6">
-      {state.error && (
-        <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
-          {state.error}
-        </p>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {!invoice && (
-          <div>
-            <label className="label" htmlFor="seriesId">
-              Serie
-            </label>
-            <select
-              id="seriesId"
-              name="seriesId"
-              className="input"
-              value={selectedSeriesId}
-              onChange={(e) => setSelectedSeriesId(e.target.value)}
-            >
-              {series.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.prefix})
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 font-mono text-xs text-ink-muted">
-              Próximo: {preview}
-            </p>
-          </div>
+    <form action={formAction}>
+      <DocumentFormShell
+        docKind="Factura"
+        numberLabel={numberLabel}
+        subtitle={
+          invoice
+            ? "Modifica los datos y guarda los cambios"
+            : "El número se reserva al guardar (correlativo sin huecos)"
+        }
+      >
+        {state.error && (
+          <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+            {state.error}
+          </p>
         )}
-        <div>
-          <label className="label" htmlFor="clientId">
-            Cliente
-          </label>
-          <select
-            id="clientId"
-            name="clientId"
-            className="input"
-            required
-            defaultValue={invoice?.clientId ?? defaultClientId ?? ""}
-          >
-            <option value="">Seleccionar…</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label" htmlFor="issueDate">
-            Fecha emisión
-          </label>
-          <DateInput
-            id="issueDate"
-            name="issueDate"
-            className="input"
-            required
-            defaultValue={invoice?.issueDate ?? todayISO()}
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="dueDate">
-            Vencimiento
-          </label>
-          <DateInput
-            id="dueDate"
-            name="dueDate"
-            className="input"
-            defaultValue={invoice?.dueDate ?? plusDaysISO(30)}
-          />
-        </div>
-        {invoice && (
-          <div>
-            <label className="label" htmlFor="status">
-              Estado
-            </label>
-            <select
-              id="status"
-              name="status"
-              className="input"
-              defaultValue={invoice.status}
-            >
-              {["PENDIENTE", "PAGADA", "VENCIDA", "ANULADA"].map((s) => (
-                <option key={s} value={s}>
-                  {s.charAt(0) + s.slice(1).toLowerCase()}
-                </option>
-              ))}
-            </select>
+
+        <DocumentFormSection
+          title="Datos"
+          hint="Serie, cliente, fechas y cobro"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            {!invoice && (
+              <div>
+                <label className="label" htmlFor="seriesId">
+                  Serie
+                </label>
+                <select
+                  id="seriesId"
+                  name="seriesId"
+                  className="input"
+                  value={selectedSeriesId}
+                  onChange={(e) => setSelectedSeriesId(e.target.value)}
+                >
+                  {series.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.prefix})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className={invoice ? "sm:col-span-2" : undefined}>
+              <label className="label" htmlFor="clientId">
+                Cliente
+              </label>
+              <select
+                id="clientId"
+                name="clientId"
+                className="input"
+                required
+                defaultValue={invoice?.clientId ?? defaultClientId ?? ""}
+              >
+                <option value="">Seleccionar…</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="issueDate">
+                Fecha emisión
+              </label>
+              <DateInput
+                id="issueDate"
+                name="issueDate"
+                className="input"
+                required
+                defaultValue={invoice?.issueDate ?? todayISO()}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="dueDate">
+                Vencimiento
+              </label>
+              <DateInput
+                id="dueDate"
+                name="dueDate"
+                className="input"
+                defaultValue={invoice?.dueDate ?? plusDaysISO(30)}
+              />
+            </div>
+            {invoice && (
+              <div>
+                <label className="label" htmlFor="status">
+                  Estado
+                </label>
+                <select
+                  id="status"
+                  name="status"
+                  className="input"
+                  defaultValue={invoice.status}
+                >
+                  {["PENDIENTE", "PAGADA", "VENCIDA", "ANULADA"].map((s) => (
+                    <option key={s} value={s}>
+                      {s.charAt(0) + s.slice(1).toLowerCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className={invoice ? undefined : "sm:col-span-2"}>
+              <label className="label" htmlFor="paymentMethod">
+                Método de pago
+              </label>
+              <input
+                id="paymentMethod"
+                name="paymentMethod"
+                className="input"
+                placeholder="Transferencia, efectivo…"
+                defaultValue={invoice?.paymentMethod ?? ""}
+              />
+            </div>
           </div>
-        )}
-        <div>
-          <label className="label" htmlFor="paymentMethod">
-            Método de pago
-          </label>
-          <input
-            id="paymentMethod"
-            name="paymentMethod"
-            className="input"
-            placeholder="Transferencia, efectivo…"
-            defaultValue={invoice?.paymentMethod ?? ""}
+        </DocumentFormSection>
+
+        <DocumentFormSection
+          title="Conceptos"
+          hint="Líneas de la factura e IRPF"
+        >
+          <LineItemsEditor
+            lines={lines}
+            onChange={setLines}
+            irpfRate={irpfRate}
+            onIrpfChange={setIrpfRate}
+            showIrpf
+            defaultVatRate={defaultVatRate}
           />
-        </div>
-      </div>
+        </DocumentFormSection>
 
-      <LineItemsEditor
-        lines={lines}
-        onChange={setLines}
-        irpfRate={irpfRate}
-        onIrpfChange={setIrpfRate}
-        showIrpf
-        defaultVatRate={defaultVatRate}
-      />
+        <DocumentFormSection title="Notas">
+          <label className="label" htmlFor="notes">
+            Observaciones
+          </label>
+          <textarea
+            id="notes"
+            name="notes"
+            rows={4}
+            className="input"
+            placeholder="Notas visibles en la factura…"
+            defaultValue={invoice?.notes ?? ""}
+          />
+        </DocumentFormSection>
+      </DocumentFormShell>
 
-      <div>
-        <label className="label" htmlFor="notes">
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          className="input"
-          defaultValue={invoice?.notes ?? ""}
-        />
-      </div>
-
-      <div className="flex gap-3">
+      <DocumentFormStickyBar
+        totalLabel="Total factura"
+        totalValue={formatCurrency(totals.total)}
+      >
+        <a href="/invoices" className="btn-secondary">
+          Cancelar
+        </a>
         <button type="submit" disabled={pending} className="btn-primary">
           {pending
             ? "Guardando…"
@@ -223,10 +262,7 @@ export function InvoiceForm({
               ? "Guardar cambios"
               : "Emitir factura"}
         </button>
-        <a href="/invoices" className="btn-secondary">
-          Cancelar
-        </a>
-      </div>
+      </DocumentFormStickyBar>
     </form>
   );
 }

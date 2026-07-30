@@ -1,13 +1,19 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   LineItemsEditor,
   createEmptyLines,
   type EditorLine,
 } from "@/components/documents/LineItemsEditor";
+import {
+  DocumentFormSection,
+  DocumentFormShell,
+  DocumentFormStickyBar,
+} from "@/components/documents/DocumentFormShell";
 import { createQuote, updateQuote, type DocFormState } from "@/app/(app)/quotes/actions";
 import { DateInput } from "@/components/ui/DateInput";
+import { calculateDocument, formatCurrency } from "@/lib/calculations";
 
 type ClientOption = { id: string; name: string };
 type QuoteData = {
@@ -20,6 +26,7 @@ type QuoteData = {
   conditions: string;
   discountPct: number;
   lines: EditorLine[];
+  fullNumber?: string;
 };
 
 type Props = {
@@ -60,121 +67,153 @@ export function QuoteForm({
   );
   const [discountPct, setDiscountPct] = useState(quote?.discountPct ?? 0);
 
+  const totals = useMemo(
+    () => calculateDocument(lines, 0, discountPct),
+    [lines, discountPct]
+  );
+
+  const numberLabel =
+    quote?.fullNumber ?? nextNumberPreview ?? undefined;
+
   return (
-    <form action={formAction} className="space-y-6">
-      {state.error && (
-        <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
-          {state.error}
-        </p>
-      )}
+    <form action={formAction}>
+      <DocumentFormShell
+        docKind="Presupuesto"
+        numberLabel={numberLabel}
+        subtitle={
+          quote
+            ? "Modifica los datos y guarda los cambios"
+            : "El número se asignará al guardar"
+        }
+      >
+        {state.error && (
+          <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+            {state.error}
+          </p>
+        )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {!quote && nextNumberPreview ? (
-          <div>
-            <label className="label">Número</label>
-            <p className="py-2 font-mono text-sm">{nextNumberPreview}</p>
+        <DocumentFormSection
+          title="Datos"
+          hint="Cliente, fechas y estado del documento"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="clientId">
+                Cliente
+              </label>
+              <select
+                id="clientId"
+                name="clientId"
+                className="input"
+                required
+                defaultValue={quote?.clientId ?? defaultClientId ?? ""}
+              >
+                <option value="">Seleccionar…</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="issueDate">
+                Fecha emisión
+              </label>
+              <DateInput
+                id="issueDate"
+                name="issueDate"
+                className="input"
+                required
+                defaultValue={quote?.issueDate ?? todayISO()}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="validUntil">
+                Válido hasta
+              </label>
+              <DateInput
+                id="validUntil"
+                name="validUntil"
+                className="input"
+                defaultValue={quote?.validUntil ?? plusDaysISO(30)}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="status">
+                Estado
+              </label>
+              <select
+                id="status"
+                name="status"
+                className="input"
+                defaultValue={quote?.status ?? "BORRADOR"}
+              >
+                {["BORRADOR", "ENVIADO", "ACEPTADO", "RECHAZADO", "EXPIRADO"].map(
+                  (s) => (
+                    <option key={s} value={s}>
+                      {s.charAt(0) + s.slice(1).toLowerCase()}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
           </div>
-        ) : null}
-        <div>
-          <label className="label" htmlFor="clientId">
-            Cliente
-          </label>
-          <select
-            id="clientId"
-            name="clientId"
-            className="input"
-            required
-            defaultValue={quote?.clientId ?? defaultClientId ?? ""}
-          >
-            <option value="">Seleccionar…</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label" htmlFor="issueDate">
-            Fecha emisión
-          </label>
-          <DateInput
-            id="issueDate"
-            name="issueDate"
-            className="input"
-            required
-            defaultValue={quote?.issueDate ?? todayISO()}
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="validUntil">
-            Válido hasta
-          </label>
-          <DateInput
-            id="validUntil"
-            name="validUntil"
-            className="input"
-            defaultValue={quote?.validUntil ?? plusDaysISO(30)}
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="status">
-            Estado
-          </label>
-          <select
-            id="status"
-            name="status"
-            className="input"
-            defaultValue={quote?.status ?? "BORRADOR"}
-          >
-            {["BORRADOR", "ENVIADO", "ACEPTADO", "RECHAZADO", "EXPIRADO"].map(
-              (s) => (
-                <option key={s} value={s}>
-                  {s.charAt(0) + s.slice(1).toLowerCase()}
-                </option>
-              )
-            )}
-          </select>
-        </div>
-      </div>
+        </DocumentFormSection>
 
-      <LineItemsEditor
-        lines={lines}
-        onChange={setLines}
-        defaultVatRate={defaultVatRate}
-        showGlobalDiscount
-        globalDiscountPct={discountPct}
-        onGlobalDiscountChange={setDiscountPct}
-      />
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="label" htmlFor="notes">
-            Notas
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows={3}
-            className="input"
-            defaultValue={quote?.notes ?? ""}
+        <DocumentFormSection
+          title="Conceptos"
+          hint="Líneas del presupuesto y descuento general"
+        >
+          <LineItemsEditor
+            lines={lines}
+            onChange={setLines}
+            defaultVatRate={defaultVatRate}
+            showGlobalDiscount
+            globalDiscountPct={discountPct}
+            onGlobalDiscountChange={setDiscountPct}
           />
-        </div>
-        <div>
-          <label className="label" htmlFor="conditions">
-            Condiciones
-          </label>
-          <textarea
-            id="conditions"
-            name="conditions"
-            rows={3}
-            className="input"
-            defaultValue={quote?.conditions ?? ""}
-          />
-        </div>
-      </div>
+        </DocumentFormSection>
 
-      <div className="flex gap-3">
+        <DocumentFormSection title="Notas y condiciones">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="notes">
+                Notas
+              </label>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={4}
+                className="input"
+                placeholder="Observaciones visibles en el documento…"
+                defaultValue={quote?.notes ?? ""}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="conditions">
+                Condiciones
+              </label>
+              <textarea
+                id="conditions"
+                name="conditions"
+                rows={4}
+                className="input"
+                placeholder="Condiciones de aceptación, plazos…"
+                defaultValue={quote?.conditions ?? ""}
+              />
+            </div>
+          </div>
+        </DocumentFormSection>
+      </DocumentFormShell>
+
+      <DocumentFormStickyBar
+        totalLabel="Total presupuesto"
+        totalValue={formatCurrency(totals.total)}
+      >
+        <a href="/quotes" className="btn-secondary">
+          Cancelar
+        </a>
         <button type="submit" disabled={pending} className="btn-primary">
           {pending
             ? "Guardando…"
@@ -182,10 +221,7 @@ export function QuoteForm({
               ? "Guardar cambios"
               : "Crear presupuesto"}
         </button>
-        <a href="/quotes" className="btn-secondary">
-          Cancelar
-        </a>
-      </div>
+      </DocumentFormStickyBar>
     </form>
   );
 }
