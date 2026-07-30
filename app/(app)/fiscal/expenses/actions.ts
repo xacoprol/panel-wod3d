@@ -114,6 +114,92 @@ function duplicateMessage(invoiceNumber: string | null) {
   return `Ya existe un gasto con la factura ${invoiceNumber ?? "indicada"} del mismo proveedor.`;
 }
 
+type ExpenseWriteData = ReturnType<typeof parseExpenseForm>;
+
+async function insertExpense(data: ExpenseWriteData): Promise<
+  | { ok: true; id: string }
+  | { ok: false; error: string; duplicateId?: string }
+> {
+  const err = validate(data);
+  if (err) return { ok: false, error: err };
+
+  const dup = await findDuplicateExpense(data);
+  if (dup) {
+    return {
+      ok: false,
+      error: duplicateMessage(dup.invoiceNumber),
+      duplicateId: dup.id,
+    };
+  }
+
+  const created = await prisma.expense.create({ data });
+  revalidatePath("/fiscal");
+  revalidatePath("/fiscal/expenses");
+  return { ok: true, id: created.id };
+}
+
+export type ExpenseDraftInput = {
+  issueDate: string;
+  supplierName: string;
+  supplierNif?: string | null;
+  invoiceNumber?: string | null;
+  description?: string | null;
+  category?: string;
+  subtotal: number;
+  vatRate: number;
+  vatAmount?: number;
+  total?: number;
+  deductible?: boolean;
+  notes?: string | null;
+};
+
+function fromDraftInput(input: ExpenseDraftInput): ExpenseWriteData {
+  const subtotal = round2(Math.max(0, Number(input.subtotal) || 0));
+  const vatRate = Number(input.vatRate) || 0;
+  const vatAmount =
+    input.vatAmount != null
+      ? round2(Math.max(0, Number(input.vatAmount) || 0))
+      : round2(subtotal * (vatRate / 100));
+  const total =
+    input.total != null
+      ? round2(Math.max(0, Number(input.total) || 0))
+      : round2(subtotal + vatAmount);
+  const issueDateRaw = String(input.issueDate ?? "").trim();
+
+  return {
+    issueDate: issueDateRaw ? new Date(issueDateRaw) : new Date(),
+    supplierName: String(input.supplierName ?? "").trim(),
+    supplierNif: String(input.supplierNif ?? "").trim() || null,
+    invoiceNumber: normalizeInvoiceNumber(input.invoiceNumber),
+    description: String(input.description ?? "").trim() || null,
+    category: String(input.category ?? "OTROS").trim() || "OTROS",
+    subtotal,
+    vatRate,
+    vatAmount,
+    total,
+    deductible: input.deductible !== false,
+    notes: String(input.notes ?? "").trim() || null,
+  };
+}
+
+/** Alta sin redirect — para cola de varias facturas. */
+export async function createExpenseFromDraft(
+  input: ExpenseDraftInput
+): Promise<
+  | { ok: true; id: string }
+  | { ok: false; error: string; duplicateId?: string }
+> {
+  await requireAuth();
+  try {
+    return await insertExpense(fromDraftInput(input));
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error al crear",
+    };
+  }
+}
+
 export async function createExpense(
   _prev: ExpenseFormState,
   formData: FormData
@@ -121,25 +207,11 @@ export async function createExpense(
   await requireAuth();
   try {
     const data = parseExpenseForm(formData);
-    const err = validate(data);
-    if (err) return { error: err };
-
-    const dup = await findDuplicateExpense(data);
-    if (dup) {
-      return {
-        error: duplicateMessage(dup.invoiceNumber),
-        duplicateId: dup.id,
-      };
+    data.deductible = formData.has("deductible");
+    const result = await insertExpense(data);
+    if (!result.ok) {
+      return { error: result.error, duplicateId: result.duplicateId };
     }
-
-    await prisma.expense.create({
-      data: {
-        ...data,
-        deductible: formData.has("deductible"),
-      },
-    });
-    revalidatePath("/fiscal");
-    revalidatePath("/fiscal/expenses");
     redirect("/fiscal/expenses");
   } catch (e) {
     if (isRedirectError(e)) throw e;

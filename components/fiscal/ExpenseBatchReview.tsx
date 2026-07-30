@@ -1,0 +1,416 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { VAT_RATES } from "@/lib/calculations";
+import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
+import { DateInput } from "@/components/ui/DateInput";
+import {
+  createExpenseFromDraft,
+  type ExpenseDraftInput,
+} from "@/app/(app)/fiscal/expenses/actions";
+import {
+  clearExpenseDraftQueue,
+  peekExpenseDraftQueue,
+  saveExpenseDraftQueue,
+  type ExpenseQueueItem,
+} from "@/lib/expense-draft-storage";
+
+type RowStatus = "pending" | "saving" | "saved" | "error";
+
+type Row = ExpenseQueueItem & {
+  status: RowStatus;
+  error?: string;
+  duplicateId?: string;
+  deductible: boolean;
+};
+
+function round2(n: number) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function toQueueItem(row: Row): ExpenseQueueItem {
+  return {
+    localId: row.localId,
+    fileName: row.fileName,
+    issueDate: row.issueDate,
+    supplierName: row.supplierName,
+    supplierNif: row.supplierNif,
+    invoiceNumber: row.invoiceNumber,
+    description: row.description,
+    category: row.category,
+    subtotal: row.subtotal,
+    vatRate: row.vatRate,
+    vatAmount: row.vatAmount,
+    total: row.total,
+    notes: row.notes,
+    confidence: row.confidence,
+  };
+}
+
+function persistPending(rows: Row[]) {
+  saveExpenseDraftQueue(
+    rows.filter((r) => r.status !== "saved").map(toQueueItem)
+  );
+}
+
+function toInput(row: Row): ExpenseDraftInput {
+  const vatAmount = round2(row.subtotal * (row.vatRate / 100));
+  return {
+    issueDate: row.issueDate,
+    supplierName: row.supplierName,
+    supplierNif: row.supplierNif,
+    invoiceNumber: row.invoiceNumber,
+    description: row.description,
+    category: row.category,
+    subtotal: row.subtotal,
+    vatRate: row.vatRate,
+    vatAmount,
+    total: round2(row.subtotal + vatAmount),
+    deductible: row.deductible,
+    notes: row.notes,
+  };
+}
+
+export function ExpenseBatchReview() {
+  const router = useRouter();
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const rowsRef = useRef<Row[] | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const items = peekExpenseDraftQueue();
+    const initial = items.map((item) => ({
+      ...item,
+      deductible: true,
+      status: "pending" as const,
+    }));
+    setRows(initial);
+    rowsRef.current = initial;
+  }, []);
+
+  function replaceRows(next: Row[]) {
+    rowsRef.current = next;
+    setRows(next);
+  }
+
+  function patchRow(localId: string, patch: Partial<Row>) {
+    const current = rowsRef.current ?? [];
+    replaceRows(
+      current.map((r) => (r.localId === localId ? { ...r, ...patch } : r))
+    );
+  }
+
+  const pendingCount = useMemo(
+    () =>
+      rows?.filter((r) => r.status === "pending" || r.status === "error")
+        .length ?? 0,
+    [rows]
+  );
+  const savedCount = useMemo(
+    () => rows?.filter((r) => r.status === "saved").length ?? 0,
+    [rows]
+  );
+
+  function removeRow(localId: string) {
+    const next = (rowsRef.current ?? []).filter((r) => r.localId !== localId);
+    replaceRows(next);
+    persistPending(next);
+  }
+
+  async function saveOne(row: Row) {
+    patchRow(row.localId, {
+      status: "saving",
+      error: undefined,
+      duplicateId: undefined,
+    });
+    const res = await createExpenseFromDraft(toInput(row));
+    if (!res.ok) {
+      patchRow(row.localId, {
+        status: "error",
+        error: res.error,
+        duplicateId: res.duplicateId,
+      });
+      return false;
+    }
+    patchRow(row.localId, { status: "saved", error: undefined });
+    persistPending(rowsRef.current ?? []);
+    return true;
+  }
+
+  function saveAll() {
+    startTransition(async () => {
+      const todo = (rowsRef.current ?? []).filter(
+        (r) => r.status === "pending" || r.status === "error"
+      );
+      for (const row of todo) {
+        const latest =
+          rowsRef.current?.find((r) => r.localId === row.localId) ?? row;
+        await saveOne(latest);
+      }
+    });
+  }
+
+  if (rows == null) {
+    return (
+      <p className="text-sm text-ink-muted">Cargando facturas leídas…</p>
+    );
+  }
+
+  if (!rows.length) {
+    return (
+      <div className="card-panel space-y-3 p-6 text-sm">
+        <p className="text-ink-muted">
+          No hay facturas en la cola. Sube varias desde la lista de gastos.
+        </p>
+        <Link href="/fiscal/expenses" className="text-accent underline">
+          Ir a gastos
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-muted">
+          {savedCount} guardadas · {pendingCount} pendientes · {rows.length} en
+          total
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-primary text-sm"
+            disabled={pending || pendingCount === 0}
+            onClick={saveAll}
+          >
+            {pending ? "Guardando…" : `Guardar ${pendingCount} pendientes`}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost text-sm"
+            disabled={pending}
+            onClick={() => {
+              clearExpenseDraftQueue();
+              router.push("/fiscal/expenses");
+            }}
+          >
+            {savedCount > 0 ? "Volver al listado" : "Cancelar"}
+          </button>
+        </div>
+      </div>
+
+      <ul className="space-y-4">
+        {rows.map((row, index) => {
+          const vatAmount = round2(row.subtotal * (row.vatRate / 100));
+          const total = round2(row.subtotal + vatAmount);
+          const locked = row.status === "saved" || row.status === "saving";
+
+          return (
+            <li
+              key={row.localId}
+              className={`card-panel space-y-4 p-4 sm:p-5 ${
+                row.status === "saved" ? "opacity-70" : ""
+              }`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-ink">
+                    {index + 1}. {row.fileName}
+                  </p>
+                  <p className="text-xs text-ink-muted">
+                    Confianza{" "}
+                    {row.confidence === "high"
+                      ? "alta"
+                      : row.confidence === "low"
+                        ? "baja"
+                        : "media"}
+                    {row.status === "saved" ? " · guardada" : null}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {row.status !== "saved" ? (
+                    <button
+                      type="button"
+                      className="btn-ghost px-2 py-1 text-xs"
+                      disabled={locked || pending}
+                      onClick={() => void saveOne(row)}
+                    >
+                      {row.status === "saving" ? "Guardando…" : "Guardar"}
+                    </button>
+                  ) : null}
+                  {row.status !== "saved" ? (
+                    <button
+                      type="button"
+                      className="btn-ghost px-2 py-1 text-xs text-danger"
+                      disabled={locked || pending}
+                      onClick={() => removeRow(row.localId)}
+                    >
+                      Quitar
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {row.error ? (
+                <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {row.error}
+                  {row.duplicateId ? (
+                    <>
+                      {" "}
+                      <Link
+                        href={`/fiscal/expenses/${row.duplicateId}/edit`}
+                        className="font-medium underline"
+                      >
+                        Abrir el existente
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label className="label">Fecha</label>
+                  <DateInput
+                    className="input"
+                    value={row.issueDate}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, { issueDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">Categoría</label>
+                  <select
+                    className="input"
+                    value={row.category}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, { category: e.target.value })
+                    }
+                  >
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Nº factura</label>
+                  <input
+                    className="input font-mono"
+                    value={row.invoiceNumber ?? ""}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        invoiceNumber: e.target.value || null,
+                      })
+                    }
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="label">Proveedor</label>
+                  <input
+                    className="input"
+                    value={row.supplierName}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, { supplierName: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">NIF</label>
+                  <input
+                    className="input font-mono"
+                    value={row.supplierNif ?? ""}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        supplierNif: e.target.value || null,
+                      })
+                    }
+                  />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="label">Concepto</label>
+                  <input
+                    className="input"
+                    value={row.description ?? ""}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        description: e.target.value || null,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">Base</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="input font-mono"
+                    value={row.subtotal}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        subtotal: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">IVA %</label>
+                  <select
+                    className="input"
+                    value={row.vatRate}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        vatRate: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  >
+                    {VAT_RATES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}%
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Total</label>
+                  <input
+                    className="input font-mono"
+                    value={total}
+                    readOnly
+                    disabled
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={row.deductible}
+                  disabled={locked}
+                  onChange={(e) =>
+                    patchRow(row.localId, { deductible: e.target.checked })
+                  }
+                  className="rounded border-line"
+                />
+                Deducible
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
