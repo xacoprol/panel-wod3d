@@ -24,12 +24,16 @@ const ALLOWED_MIME = new Set([
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
-/** Prefer Lite: más RPM en free tier. Fallback si el modelo no existe o hay 429. */
+/**
+ * Modelos actuales (2.0 y 1.5 ya retirados). Orden: barato/rápido primero.
+ * Si fallan, se consulta ListModels en la API.
+ */
 const DEFAULT_MODELS = [
-  "gemini-2.0-flash-lite",
-  "gemini-2.0-flash",
   "gemini-2.5-flash-lite",
-  "gemini-1.5-flash",
+  "gemini-2.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
 ];
 
 function round2(n: number): number {
@@ -45,12 +49,48 @@ function getGeminiApiKey(): string | null {
   );
 }
 
-function getModelCandidates(): string[] {
+function rankModelName(name: string): number {
+  const n = name.toLowerCase();
+  if (n.includes("flash-lite")) return 0;
+  if (n.includes("flash") && !n.includes("pro")) return 1;
+  if (n.includes("pro")) return 3;
+  return 2;
+}
+
+async function listGenerateContentModels(apiKey: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${encodeURIComponent(apiKey)}`
+    );
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      models?: Array<{
+        name?: string;
+        supportedGenerationMethods?: string[];
+      }>;
+    };
+    const names = (json.models ?? [])
+      .filter((m) =>
+        (m.supportedGenerationMethods ?? []).includes("generateContent")
+      )
+      .map((m) => (m.name ?? "").replace(/^models\//, ""))
+      .filter((n) => n && !n.includes("embed") && !n.includes("imagen"));
+    names.sort((a, b) => rankModelName(a) - rankModelName(b) || a.localeCompare(b));
+    return names;
+  } catch {
+    return [];
+  }
+}
+
+async function getModelCandidates(apiKey: string): Promise<string[]> {
   const preferred = process.env.GEMINI_MODEL?.trim();
+  const listed = await listGenerateContentModels(apiKey);
+  const base = listed.length ? listed : DEFAULT_MODELS;
   const list = preferred
-    ? [preferred, ...DEFAULT_MODELS.filter((m) => m !== preferred)]
-    : [...DEFAULT_MODELS];
-  return [...new Set(list)];
+    ? [preferred, ...base.filter((m) => m !== preferred)]
+    : [...base];
+  // Cap to avoid hammering on 429 across dozens of models
+  return [...new Set(list)].slice(0, 6);
 }
 
 function categoryIds(): string[] {
@@ -250,8 +290,9 @@ Reglas:
 - category: elige la más razonable para un autónomo (SOFTWARE, SUMINISTROS, MATERIAL, DIETAS, PROFESIONALES, OTROS).`;
 
   const base64 = file.buffer.toString("base64");
-  const models = getModelCandidates();
+  const models = await getModelCandidates(apiKey);
   let last429 = false;
+  let last404 = false;
   let lastError = "";
 
   for (const model of models) {
@@ -274,10 +315,11 @@ Reglas:
       lastError = result.body.slice(0, 200);
       if (result.status === 429) {
         last429 = true;
-        continue; // retry same model, then next
+        continue;
       }
       if (result.status === 404) {
-        break; // try next model
+        last404 = true;
+        break;
       }
       if (result.status === 400 || result.status === 403) {
         throw new Error(
@@ -293,6 +335,11 @@ Reglas:
   if (last429) {
     throw new Error(
       "Límite gratis de Gemini agotado (pocas peticiones/minuto). Espera 1 minuto o activa facturación en Google AI Studio (pay-as-you-go, suele costar céntimos)."
+    );
+  }
+  if (last404) {
+    throw new Error(
+      "Ningún modelo Gemini disponible con esta API key. En Vercel define GEMINI_MODEL (ej. gemini-2.5-flash-lite) o revisa la clave."
     );
   }
   throw new Error(
