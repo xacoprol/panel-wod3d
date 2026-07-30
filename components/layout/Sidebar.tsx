@@ -3,7 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode, type SVGProps } from "react";
+import {
+  useEffect,
+  useState,
+  type ReactNode,
+  type SVGProps,
+} from "react";
 
 const STORAGE_KEY = "vexo-sidebar-collapsed";
 
@@ -28,7 +33,16 @@ function Icon({
   );
 }
 
-const NAV = [
+type NavChild = { href: string; label: string };
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: ReactNode;
+  children?: NavChild[];
+};
+
+const NAV: NavItem[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
@@ -111,6 +125,12 @@ const NAV = [
         <path d="M18 16V7" />
       </Icon>
     ),
+    children: [
+      { href: "/fiscal", label: "Resumen" },
+      { href: "/fiscal/expenses", label: "Gastos" },
+      { href: "/fiscal/303", label: "Modelo 303" },
+      { href: "/fiscal/130", label: "Modelo 130" },
+    ],
   },
   {
     href: "/settings",
@@ -123,6 +143,167 @@ const NAV = [
     ),
   },
 ];
+
+function childActive(pathname: string, href: string) {
+  if (href === "/fiscal") {
+    return pathname === "/fiscal";
+  }
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
+function NavItemRow({
+  item,
+  collapsed,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const routeActive =
+    pathname === item.href || pathname.startsWith(item.href + "/");
+  const hasChildren = Boolean(item.children?.length);
+  const [open, setOpen] = useState(routeActive);
+  const [hover, setHover] = useState(false);
+
+  useEffect(() => {
+    if (routeActive) setOpen(true);
+  }, [routeActive]);
+
+  const showInline = hasChildren && !collapsed && (open || hover || routeActive);
+  const showFlyout = hasChildren && collapsed && hover;
+
+  if (!hasChildren) {
+    return (
+      <Link
+        href={item.href}
+        title={item.label}
+        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+          collapsed ? "lg:justify-center lg:px-0" : ""
+        } ${
+          routeActive
+            ? "bg-white/15 text-white"
+            : "text-white/65 hover:bg-white/8 hover:text-white"
+        }`}
+        onClick={onNavigate}
+      >
+        <span
+          className={
+            routeActive
+              ? "text-white"
+              : "text-white/55 group-hover:text-white/90"
+          }
+        >
+          {item.icon}
+        </span>
+        <span className={collapsed ? "lg:hidden" : ""}>{item.label}</span>
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div
+        className={`flex items-center rounded-lg transition ${
+          routeActive
+            ? "bg-white/15 text-white"
+            : "text-white/65 hover:bg-white/8 hover:text-white"
+        }`}
+      >
+        <Link
+          href={item.href}
+          title={item.label}
+          className={`group flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm ${
+            collapsed ? "lg:justify-center lg:px-0" : ""
+          }`}
+          onClick={onNavigate}
+        >
+          <span
+            className={
+              routeActive
+                ? "text-white"
+                : "text-white/55 group-hover:text-white/90"
+            }
+          >
+            {item.icon}
+          </span>
+          <span className={collapsed ? "lg:hidden" : ""}>{item.label}</span>
+        </Link>
+        <button
+          type="button"
+          className={`mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/60 hover:bg-white/10 hover:text-white ${
+            collapsed ? "lg:hidden" : ""
+          }`}
+          aria-label={open ? "Cerrar submenú" : "Abrir submenú"}
+          aria-expanded={open || hover}
+          onClick={(e) => {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }}
+        >
+          <Icon
+            className={`h-4 w-4 transition ${showInline || open ? "rotate-90" : ""}`}
+          >
+            <path d="m9 18 6-6-6-6" />
+          </Icon>
+        </button>
+      </div>
+
+      {showInline ? (
+        <div className="mt-0.5 ml-3 space-y-0.5 border-l border-white/15 pl-2">
+          {item.children!.map((child) => {
+            const active = childActive(pathname, child.href);
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                className={`block rounded-md px-3 py-2 text-sm transition ${
+                  active
+                    ? "bg-white/12 text-white"
+                    : "text-white/55 hover:bg-white/8 hover:text-white"
+                }`}
+                onClick={onNavigate}
+              >
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {showFlyout ? (
+        <div className="absolute left-full top-0 z-[60] ml-2 hidden w-44 rounded-lg border border-white/10 bg-sidebar py-1.5 shadow-xl lg:block">
+          <p className="px-3 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-white/40">
+            {item.label}
+          </p>
+          {item.children!.map((child) => {
+            const active = childActive(pathname, child.href);
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                className={`block px-3 py-2 text-sm transition ${
+                  active
+                    ? "bg-white/12 text-white"
+                    : "text-white/65 hover:bg-white/8 hover:text-white"
+                }`}
+                onClick={onNavigate}
+              >
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function Sidebar({
   companyName,
@@ -271,39 +452,16 @@ export function Sidebar({
           </button>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2.5">
-          {NAV.map((item) => {
-            const active =
-              pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={item.label}
-                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition lg:py-2.5 ${
-                  collapsed ? "lg:justify-center lg:px-0" : ""
-                } ${
-                  active
-                    ? "bg-white/15 text-white"
-                    : "text-white/65 hover:bg-white/8 hover:text-white"
-                }`}
-                onClick={() => setOpen(false)}
-              >
-                <span
-                  className={
-                    active
-                      ? "text-white"
-                      : "text-white/55 group-hover:text-white/90"
-                  }
-                >
-                  {item.icon}
-                </span>
-                <span className={collapsed ? "lg:hidden" : ""}>
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-visible p-2.5">
+          {NAV.map((item) => (
+            <NavItemRow
+              key={item.href}
+              item={item}
+              collapsed={collapsed}
+              pathname={pathname}
+              onNavigate={() => setOpen(false)}
+            />
+          ))}
         </nav>
 
         <div className="hidden border-t border-white/10 p-2.5 lg:block">
