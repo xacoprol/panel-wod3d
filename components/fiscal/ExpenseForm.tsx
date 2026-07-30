@@ -14,6 +14,7 @@ import {
 } from "@/app/(app)/fiscal/expenses/actions";
 import type { ParsedExpenseDraft } from "@/lib/gemini-expense";
 import { consumeExpenseDraft } from "@/lib/expense-draft-storage";
+import { ButtonPending } from "@/components/ui/ButtonPending";
 
 type Props = {
   expense?: Expense;
@@ -326,7 +327,11 @@ export function ExpenseForm({ expense }: Props) {
       </section>
 
       <button type="submit" className="btn-primary" disabled={pending}>
-        {pending ? "Guardando…" : expense ? "Guardar cambios" : "Registrar gasto"}
+        <ButtonPending
+          pending={pending}
+          idle={expense ? "Guardar cambios" : "Registrar gasto"}
+          busy="Guardando…"
+        />
       </button>
     </form>
   );

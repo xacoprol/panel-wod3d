@@ -86,3 +86,17 @@ body {
 .form-section-hint {
   @apply mt-0.5 text-xs text-ink-muted;
 }
+
+@keyframes nav-progress {
+  0% {
+    transform: scaleX(0.08);
+  }
+  100% {
+    transform: scaleX(0.85);
+  }
+}
+
+.nav-progress-run {
+  animation: nav-progress 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+

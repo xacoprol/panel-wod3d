@@ -9,6 +9,7 @@ import {
 } from "@/app/(app)/settings/actions";
 import { THEME_FIELDS, DEFAULT_THEME } from "@/lib/theme";
 import { LogoUploadField } from "@/components/settings/LogoUploadField";
+import { ButtonPending } from "@/components/ui/ButtonPending";
 
 type Props = {
   settings: CompanySettings;
@@ -442,7 +443,11 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
         </section>
 
         <button type="submit" disabled={pending} className="btn-primary">
-          {pending ? "Guardando…" : "Guardar ajustes"}
+          <ButtonPending
+            pending={pending}
+            idle="Guardar ajustes"
+            busy="Guardando…"
+          />
         </button>
       </form>
 

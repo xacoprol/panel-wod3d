@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { InlineSkeleton } from "@/components/ui/PageSkeleton";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/calculations";
 import { parsePage, paginationMeta } from "@/lib/pagination";
@@ -51,7 +52,7 @@ export default async function CatalogPage({
         </Link>
       </div>
 
-      <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+      <Suspense fallback={<InlineSkeleton />}>
         <LiveSearch placeholder="Buscar por nombre o descripción…" />
       </Suspense>
 

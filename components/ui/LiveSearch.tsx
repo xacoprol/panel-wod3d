@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Spinner } from "@/components/ui/Spinner";
 
 type Props = {
   param?: string;
@@ -22,7 +23,7 @@ export function LiveSearch({
   const searchParams = useSearchParams();
   const urlValue = searchParams.get(param) ?? "";
   const [value, setValue] = useState(urlValue);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipSyncRef = useRef(false);
 
@@ -60,21 +61,29 @@ export function LiveSearch({
   }, []);
 
   return (
-    <input
-      type="search"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          if (timerRef.current) clearTimeout(timerRef.current);
-          pushQuery(value);
-        }
-      }}
-      placeholder={placeholder}
-      className={className}
-      aria-label={placeholder}
-    />
+    <div className="relative w-full max-w-md">
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (timerRef.current) clearTimeout(timerRef.current);
+            pushQuery(value);
+          }
+        }}
+        placeholder={placeholder}
+        className={`${className.replace(/\bmax-w-md\b/, "").trim()} w-full ${pending ? "pr-10" : ""}`}
+        aria-label={placeholder}
+        aria-busy={pending}
+      />
+      {pending ? (
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+          <Spinner className="h-4 w-4" label="Buscando" />
+        </span>
+      ) : null}
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { InlineSkeleton } from "@/components/ui/PageSkeleton";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { parsePage, paginationMeta } from "@/lib/pagination";
@@ -68,7 +69,7 @@ export default async function MarketplaceIncomePage({
 
       <MarketplaceIncomeDropZone />
 
-      <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+      <Suspense fallback={<InlineSkeleton />}>
         <LiveSearch placeholder="Buscar factura Amazon, pedido, SKU…" />
       </Suspense>
 

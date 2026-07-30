@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { InlineSkeleton } from "@/components/ui/PageSkeleton";
 import { prisma } from "@/lib/prisma";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
@@ -102,7 +103,7 @@ export default async function QuotesPage({
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
-        <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+        <Suspense fallback={<InlineSkeleton />}>
           <LiveSearch placeholder="Buscar por nº, cliente o NIF…" />
         </Suspense>
         <Suspense fallback={null}>

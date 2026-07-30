@@ -18,29 +18,31 @@ export function RevenueChart({ data }: { data: Point[] }) {
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#d4cbb8" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fill: "#5c6b7a", fontSize: 11 }}
-            axisLine={{ stroke: "#d4cbb8" }}
+            tick={{ fill: "var(--ink-muted)", fontSize: 11 }}
+            axisLine={{ stroke: "var(--line)" }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "#5c6b7a", fontSize: 11 }}
+            tick={{ fill: "var(--ink-muted)", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v) => `${Math.round(v / 1000)}k`}
+            tickFormatter={(v) =>
+              Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(v)
+            }
           />
           <Tooltip
             formatter={(value) => formatCurrency(Number(value ?? 0))}
             contentStyle={{
-              background: "#faf7f0",
-              border: "1px solid #d4cbb8",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--line)",
               borderRadius: 8,
               fontSize: 12,
             }}
           />
-          <Bar dataKey="total" fill="#0d6e6e" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="total" fill="var(--accent)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

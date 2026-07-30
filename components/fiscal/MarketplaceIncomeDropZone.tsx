@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { parseMarketplaceIncomeUpload } from "@/app/(app)/fiscal/income/actions";
 import { saveMarketplaceIncomeQueue } from "@/lib/marketplace-income-storage";
 import { formatCurrency } from "@/lib/calculations";
+import { Spinner } from "@/components/ui/Spinner";
 
 function newLocalId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -103,11 +104,14 @@ export function MarketplaceIncomeDropZone() {
           }}
         />
         <p className="text-sm font-medium text-ink">
-          {parsing
-            ? "Leyendo informe…"
-            : dragging
-              ? "Suelta el CSV aquí"
-              : "Arrastra el CSV de Amazon o Shopify"}
+          {parsing ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <Spinner className="h-4 w-4" label="Leyendo informe" />
+              Leyendo informe…
+            </span>
+          ) : dragging
+            ? "Suelta el CSV aquí"
+            : "Arrastra el CSV de Amazon o Shopify"}
         </p>
         <p className="mt-1 text-xs text-ink-muted">
           Amazon: VAT Tax Report · Shopify: ventas por país de facturación

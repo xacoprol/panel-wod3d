@@ -18,6 +18,7 @@ import {
   type DocFormState,
 } from "@/app/(app)/invoices/actions";
 import { DateInput } from "@/components/ui/DateInput";
+import { ButtonPending } from "@/components/ui/ButtonPending";
 import { calculateDocument, formatCurrency } from "@/lib/calculations";
 import {
   isZeroVatOperation,
@@ -291,11 +292,11 @@ export function InvoiceForm({
           Cancelar
         </a>
         <button type="submit" disabled={pending} className="btn-primary">
-          {pending
-            ? "Guardando…"
-            : invoice
-              ? "Guardar cambios"
-              : "Emitir factura"}
+          <ButtonPending
+            pending={pending}
+            idle={invoice ? "Guardar cambios" : "Emitir factura"}
+            busy="Guardando…"
+          />
         </button>
       </DocumentFormStickyBar>
     </form>

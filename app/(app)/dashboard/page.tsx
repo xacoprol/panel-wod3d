@@ -1,43 +1,22 @@
 import Link from "next/link";
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfYear,
-  endOfYear,
-  startOfQuarter,
-  endOfQuarter,
-  subMonths,
-  format,
-} from "date-fns";
-import { es } from "date-fns/locale";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
-
-async function sumInvoices(from: Date, to: Date) {
-  const rows = await prisma.invoice.findMany({
-    where: {
-      status: { not: "ANULADA" },
-      issueDate: { gte: from, lte: to },
-    },
-    select: { total: true },
-  });
-  return rows.reduce((s, r) => s + Number(r.total), 0);
-}
+import { buildRecentMonthTotals, buildYearStats } from "@/lib/stats";
 
 export default async function DashboardPage() {
   const now = new Date();
+  const year = now.getFullYear();
+
   const [
-    monthTotal,
-    quarterTotal,
-    yearTotal,
+    yearStats,
+    chartRows,
     upcoming,
     recentPending,
   ] = await Promise.all([
-    sumInvoices(startOfMonth(now), endOfMonth(now)),
-    sumInvoices(startOfQuarter(now), endOfQuarter(now)),
-    sumInvoices(startOfYear(now), endOfYear(now)),
+    buildYearStats(year),
+    buildRecentMonthTotals(6),
     prisma.recurringInvoiceTemplate.findMany({
       where: { status: "ACTIVA", nextRunDate: { not: null } },
       include: { client: true },
@@ -52,46 +31,52 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  const pendingList = await prisma.invoice.findMany({
-    where: { status: { in: ["PENDIENTE", "VENCIDA"] } },
-    include: { payments: { select: { amount: true } } },
-  });
-  const pendingAmount = pendingList.reduce((sum, inv) => {
-    const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0);
-    return sum + Math.max(0, Number(inv.total) - paid);
-  }, 0);
-  const pendingCount = pendingList.length;
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const monthPoint = yearStats.months.find((m) => m.key === monthKey);
+  const quarter = Math.floor(now.getMonth() / 3);
+  const quarterIncome = yearStats.months
+    .slice(quarter * 3, quarter * 3 + 3)
+    .reduce((s, m) => s + m.incomeBase, 0);
 
-  const chartData = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = subMonths(now, i);
-    const from = startOfMonth(d);
-    const to = endOfMonth(d);
-    const total = await sumInvoices(from, to);
-    chartData.push({
-      label: format(d, "MMM yy", { locale: es }),
-      total,
-    });
-  }
+  const chartData = chartRows.map((r) => ({
+    label: r.label,
+    total: r.incomeBase,
+  }));
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Resumen de facturación y cobros pendientes
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Ingresos reales (W3D + marketplaces) y cobros pendientes
+          </p>
+        </div>
+        <Link href="/stats" className="btn-secondary text-sm">
+          Ver estadísticas
+        </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: "Mes actual", value: monthTotal },
-          { label: "Trimestre", value: quarterTotal },
-          { label: "Año", value: yearTotal },
+          {
+            label: "Mes actual",
+            value: monthPoint?.incomeBase ?? 0,
+            hint: "Base W3D + marketplace",
+          },
+          {
+            label: "Trimestre",
+            value: Math.round((quarterIncome + Number.EPSILON) * 100) / 100,
+          },
+          {
+            label: "Año",
+            value: yearStats.incomeBase,
+            hint: `Cobrado ${formatCurrency(yearStats.collected)}`,
+          },
           {
             label: "Pendiente de cobro",
-            value: pendingAmount,
-            hint: `${pendingCount} facturas`,
+            value: yearStats.pendingCollect,
+            hint: `${yearStats.pendingCount} facturas`,
           },
         ].map((card) => (
           <div key={card.label} className="card-panel p-5">
@@ -101,16 +86,21 @@ export default async function DashboardPage() {
             <p className="mt-2 font-mono text-2xl font-semibold tracking-tight">
               {formatCurrency(card.value)}
             </p>
-            {"hint" in card && card.hint && (
+            {"hint" in card && card.hint ? (
               <p className="mt-1 text-xs text-ink-muted">{card.hint}</p>
-            )}
+            ) : null}
           </div>
         ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
         <section className="card-panel p-5 lg:col-span-3">
-          <h2 className="mb-4 text-sm font-semibold">Ingresos (6 meses)</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Ingresos (6 meses)</h2>
+            <Link href="/stats" className="text-xs text-accent hover:underline">
+              Desglose
+            </Link>
+          </div>
           <RevenueChart data={chartData} />
         </section>
 
@@ -126,7 +116,10 @@ export default async function DashboardPage() {
               <li className="text-ink-muted">No hay periódicas activas</li>
             ) : (
               upcoming.map((t) => (
-                <li key={t.id} className="flex justify-between gap-2 border-b border-line/50 pb-2">
+                <li
+                  key={t.id}
+                  className="flex justify-between gap-2 border-b border-line/50 pb-2"
+                >
                   <div>
                     <Link
                       href={`/recurring/${t.id}`}
@@ -148,8 +141,13 @@ export default async function DashboardPage() {
 
       <section className="card-panel overflow-x-auto">
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <h2 className="text-sm font-semibold">Facturas pendientes / vencidas</h2>
-          <Link href="/invoices?status=PENDIENTE" className="text-xs text-accent hover:underline">
+          <h2 className="text-sm font-semibold">
+            Facturas pendientes / vencidas
+          </h2>
+          <Link
+            href="/invoices?status=PENDIENTE"
+            className="text-xs text-accent hover:underline"
+          >
             Ver facturas
           </Link>
         </div>

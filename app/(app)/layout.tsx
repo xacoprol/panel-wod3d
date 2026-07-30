@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import { signOut } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +39,9 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       <Sidebar
         companyName={companyName}
         signOutSlot={<SignOutForm className="btn-ghost px-2 py-1 text-xs" />}
@@ -52,3 +57,4 @@ export default async function AppLayout({
     </div>
   );
 }
+

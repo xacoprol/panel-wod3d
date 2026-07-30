@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { InlineSkeleton } from "@/components/ui/PageSkeleton";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
@@ -60,7 +61,7 @@ export default async function ExpensesPage({
 
       <ExpenseDropZone />
 
-      <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+      <Suspense fallback={<InlineSkeleton />}>
         <LiveSearch placeholder="Buscar proveedor, NIF, nº factura o concepto…" />
       </Suspense>
 

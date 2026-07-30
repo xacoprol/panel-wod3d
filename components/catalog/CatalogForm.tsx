@@ -8,6 +8,7 @@ import {
   updateCatalogItem,
   type CatalogFormState,
 } from "@/app/(app)/catalog/actions";
+import { ButtonPending } from "@/components/ui/ButtonPending";
 
 type Props = {
   item?: CatalogItem;
@@ -127,7 +128,11 @@ export function CatalogForm({ item }: Props) {
       </section>
 
       <button type="submit" className="btn-primary" disabled={pending}>
-        {pending ? "Guardando…" : item ? "Guardar cambios" : "Crear concepto"}
+        <ButtonPending
+          pending={pending}
+          idle={item ? "Guardar cambios" : "Crear concepto"}
+          busy="Guardando…"
+        />
       </button>
     </form>
   );

@@ -9,6 +9,7 @@ import {
   saveExpenseDraftQueue,
   type ExpenseQueueItem,
 } from "@/lib/expense-draft-storage";
+import { Spinner } from "@/components/ui/Spinner";
 
 type Props = {
   /** Si se pasa y solo hay 1 archivo, rellena el formulario en la misma página. */
@@ -160,11 +161,16 @@ export function ExpenseDropZone({ onParsed, compact }: Props) {
           }}
         />
         <p className="text-sm font-medium text-ink">
-          {parsing
-            ? `Leyendo ${progress.current}/${progress.total}…`
-            : dragging
-              ? "Suelta aquí las facturas"
-              : "Arrastra aquí una o varias facturas de gasto"}
+          {parsing ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <Spinner className="h-4 w-4" />
+              {progress
+                ? `Leyendo ${progress.current}/${progress.total}…`
+                : "Leyendo…"}
+            </span>
+          ) : dragging
+            ? "Suelta aquí las facturas"
+            : "Arrastra aquí una o varias facturas de gasto"}
         </p>
         {parsing ? (
           <p className="mt-1 truncate text-xs text-ink-muted">

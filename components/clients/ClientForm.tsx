@@ -8,6 +8,7 @@ import {
   type ClientFormState,
 } from "@/app/(app)/clients/actions";
 import { COUNTRY_OPTIONS, countryNameFromCode } from "@/lib/nif";
+import { ButtonPending } from "@/components/ui/ButtonPending";
 
 type Props = {
   client?: Client;
@@ -209,7 +210,11 @@ export function ClientForm({ client }: Props) {
 
       <div className="flex gap-3">
         <button type="submit" disabled={pending} className="btn-primary">
-          {pending ? "Guardando…" : client ? "Guardar cambios" : "Crear cliente"}
+          <ButtonPending
+            pending={pending}
+            idle={client ? "Guardar cambios" : "Crear cliente"}
+            busy="Guardando…"
+          />
         </button>
         <a href="/clients" className="btn-secondary">
           Cancelar

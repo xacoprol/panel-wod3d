@@ -14,6 +14,7 @@ import {
 import { ClientCombobox, type ClientOption } from "@/components/clients/ClientCombobox";
 import { createQuote, updateQuote, type DocFormState } from "@/app/(app)/quotes/actions";
 import { DateInput } from "@/components/ui/DateInput";
+import { ButtonPending } from "@/components/ui/ButtonPending";
 import { calculateDocument, formatCurrency } from "@/lib/calculations";
 
 type QuoteData = {
@@ -219,13 +220,17 @@ export function QuoteForm({
           Cancelar
         </a>
         <button type="submit" disabled={pending} className="btn-primary">
-          {pending
-            ? "Guardando…"
-            : quote
-              ? "Guardar cambios"
-              : isProforma
-                ? "Crear proforma"
-                : "Crear presupuesto"}
+          <ButtonPending
+            pending={pending}
+            idle={
+              quote
+                ? "Guardar cambios"
+                : isProforma
+                  ? "Crear proforma"
+                  : "Crear presupuesto"
+            }
+            busy="Guardando…"
+          />
         </button>
       </DocumentFormStickyBar>
     </form>

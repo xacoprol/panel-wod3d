@@ -14,6 +14,7 @@ import {
 import { ClientCombobox, type ClientOption } from "@/components/clients/ClientCombobox";
 import { VAT_OPERATION_TYPES } from "@/lib/recurring";
 import { DateInput } from "@/components/ui/DateInput";
+import { ButtonPending } from "@/components/ui/ButtonPending";
 
 type Props = {
   series: { id: string; name: string; prefix: string; isDefault?: boolean }[];
@@ -279,7 +280,11 @@ export function RecurringForm({
       </div>
 
       <button type="submit" disabled={pending} className="btn-primary">
-        {pending ? "Guardando…" : template ? "Guardar" : "Crear"}
+        <ButtonPending
+          pending={pending}
+          idle={template ? "Guardar" : "Crear"}
+          busy="Guardando…"
+        />
       </button>
     </form>
   );

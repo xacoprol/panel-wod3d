@@ -118,11 +118,8 @@ const NAV: NavItem[] = [
     label: "Fiscal",
     icon: (
       <Icon>
-        <path d="M4 19h16" />
-        <path d="M6 16V9" />
-        <path d="M10 16V5" />
-        <path d="M14 16v-3" />
-        <path d="M18 16V7" />
+        <path d="M12 3v18" />
+        <path d="M17 8H9.5a2.5 2.5 0 0 0 0 5H14a2.5 2.5 0 0 1 0 5H6" />
       </Icon>
     ),
     children: [
@@ -132,6 +129,19 @@ const NAV: NavItem[] = [
       { href: "/fiscal/303", label: "Modelo 303" },
       { href: "/fiscal/130", label: "Modelo 130" },
     ],
+  },
+  {
+    href: "/stats",
+    label: "Estadísticas",
+    icon: (
+      <Icon>
+        <path d="M4 19h16" />
+        <path d="M6 16V9" />
+        <path d="M10 16V5" />
+        <path d="M14 16v-3" />
+        <path d="M18 16V7" />
+      </Icon>
+    ),
   },
   {
     href: "/settings",
