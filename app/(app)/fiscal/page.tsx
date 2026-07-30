@@ -35,6 +35,9 @@ export default async function FiscalPage({
           <Link href="/fiscal/expenses" className="btn-secondary">
             Gastos
           </Link>
+          <Link href="/fiscal/income" className="btn-secondary">
+            Ingresos marketplace
+          </Link>
           <Link
             href={`/fiscal/303?year=${year}&q=${quarter}`}
             className="btn-secondary"
@@ -55,12 +58,15 @@ export default async function FiscalPage({
       <FiscalPeriodNav year={year} quarter={quarter} />
 
       <p className="rounded-lg border border-line bg-accent-soft/40 px-4 py-3 text-sm text-ink-muted">
-        Las facturas emitidas ya entran solas. Los <strong className="font-medium text-ink">gastos</strong> (luz,
-        software, material, gestoría…) hay que registrarlos en{" "}
+        Las facturas W3D entran solas. Los{" "}
         <Link href="/fiscal/expenses" className="text-accent underline">
-          Gastos
-        </Link>
-        ; si no, el IVA a pagar y el 130 salen demasiado altos. Revisa el
+          gastos
+        </Link>{" "}
+        y los{" "}
+        <Link href="/fiscal/income" className="text-accent underline">
+          ingresos de Amazon/Shopify
+        </Link>{" "}
+        hay que importarlos; si no, el IVA y el 130 salen incompletos. Revisa el
         borrador antes de presentar en la AEAT.
       </p>
 
@@ -79,12 +85,16 @@ export default async function FiscalPage({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card-panel p-4">
-          <p className="text-xs text-ink-muted">Facturas emitidas</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">
-            {summary.issued.count}
+          <p className="text-xs text-ink-muted">Ingresos (base)</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums font-mono">
+            {formatCurrency(summary.issued.incomeBase)}
           </p>
-          <p className="mt-1 font-mono text-sm text-ink-muted">
-            Base {formatCurrency(summary.issued.incomeBase)}
+          <p className="mt-1 text-sm text-ink-muted">
+            {summary.issued.count} factura
+            {summary.issued.count === 1 ? "" : "s"}
+            {summary.issued.marketplaceCount > 0
+              ? ` · ${summary.issued.marketplaceCount} marketplace`
+              : ""}
           </p>
         </div>
         <div className="card-panel p-4">
@@ -159,11 +169,12 @@ export default async function FiscalPage({
             {(summary.issued.baseExenta > 0 ||
               summary.issued.baseIntracom > 0 ||
               summary.issued.baseCanarias > 0 ||
-              summary.issued.baseExport > 0) && (
+              summary.issued.baseExport > 0 ||
+              summary.issued.baseMarketplaceCollected > 0) && (
               <>
                 {summary.issued.baseExenta > 0 ? (
                   <tr className="border-b border-line/50 text-ink-muted">
-                    <td className="px-4 py-2">Exenta</td>
+                    <td className="px-4 py-2">Exenta / sin IVA</td>
                     <td className="px-4 py-2 text-right font-mono">
                       {formatCurrency(summary.issued.baseExenta)}
                     </td>
@@ -193,6 +204,17 @@ export default async function FiscalPage({
                     <td className="px-4 py-2">Exportación</td>
                     <td className="px-4 py-2 text-right font-mono">
                       {formatCurrency(summary.issued.baseExport)}
+                    </td>
+                    <td className="px-4 py-2 text-right">—</td>
+                  </tr>
+                ) : null}
+                {summary.issued.baseMarketplaceCollected > 0 ? (
+                  <tr className="border-b border-line/50 text-ink-muted">
+                    <td className="px-4 py-2">
+                      Marketplace OSS (IVA recaudado por Amazon)
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {formatCurrency(summary.issued.baseMarketplaceCollected)}
                     </td>
                     <td className="px-4 py-2 text-right">—</td>
                   </tr>

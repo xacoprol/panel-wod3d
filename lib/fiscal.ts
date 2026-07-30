@@ -24,10 +24,16 @@ export type FiscalPeriodSummary = {
     baseIntracom: number;
     baseExport: number;
     baseCanarias: number;
+    /** Base marketplace con IVA recaudado por Amazon (OSS), sin cuota en 303 */
+    baseMarketplaceCollected: number;
     /** IRPF retenido por clientes en facturas emitidas */
     irpfWithheld: number;
-    /** Ingresos computables ≈ bases (sin IVA) de facturas no anuladas */
+    /** Ingresos computables ≈ bases facturas W3D + marketplace */
     incomeBase: number;
+    /** Solo facturas W3D (sin marketplace) */
+    invoiceIncomeBase: number;
+    marketplaceCount: number;
+    marketplaceIncomeBase: number;
   };
   expenses: {
     count: number;
@@ -106,7 +112,7 @@ export async function buildFiscalPeriodSummary(
   const { from, to } = quarterRange(year, quarter);
   const label = `${quarter}T ${year}`;
 
-  const [invoices, expenses] = await Promise.all([
+  const [invoices, expenses, marketplace] = await Promise.all([
     prisma.invoice.findMany({
       where: {
         status: { not: "ANULADA" },
@@ -138,6 +144,17 @@ export async function buildFiscalPeriodSummary(
         total: true,
       },
     }),
+    prisma.marketplaceIncome.findMany({
+      where: {
+        issueDate: { gte: from, lte: to },
+      },
+      select: {
+        subtotal: true,
+        vatAmount: true,
+        vatRate: true,
+        vatStatus: true,
+      },
+    }),
   ]);
 
   const vatMap = new Map<number, VatBucket>();
@@ -145,12 +162,13 @@ export async function buildFiscalPeriodSummary(
   let baseIntracom = 0;
   let baseExport = 0;
   let baseCanarias = 0;
+  let baseMarketplaceCollected = 0;
   let irpfWithheld = 0;
-  let incomeBase = 0;
+  let invoiceIncomeBase = 0;
 
   for (const inv of invoices) {
     const subtotal = Number(inv.subtotal);
-    incomeBase = round2(incomeBase + subtotal);
+    invoiceIncomeBase = round2(invoiceIncomeBase + subtotal);
     irpfWithheld = round2(irpfWithheld + Number(inv.irpfAmount));
 
     const op = (inv.vatOperationType || "SUJETA").toUpperCase();
@@ -190,6 +208,24 @@ export async function buildFiscalPeriodSummary(
       addBucket(vatMap, rate, subtotal, Number(inv.vatAmount));
     }
   }
+
+  let marketplaceIncomeBase = 0;
+  for (const m of marketplace) {
+    const subtotal = Number(m.subtotal);
+    const vatAmount = Number(m.vatAmount);
+    marketplaceIncomeBase = round2(marketplaceIncomeBase + subtotal);
+    const status = (m.vatStatus || "TAXABLE").toUpperCase();
+    if (status === "TAXABLE") {
+      addBucket(vatMap, m.vatRate || 21, subtotal, vatAmount);
+    } else if (status === "MARKETPLACE_COLLECTED") {
+      baseMarketplaceCollected = round2(baseMarketplaceCollected + subtotal);
+    } else {
+      // EXEMPT
+      baseExenta = round2(baseExenta + subtotal);
+    }
+  }
+
+  const incomeBase = round2(invoiceIncomeBase + marketplaceIncomeBase);
 
   const vatBuckets = [...vatMap.values()].sort((a, b) => b.rate - a.rate);
   const baseSujeta = round2(vatBuckets.reduce((s, b) => s + b.base, 0));
@@ -263,7 +299,7 @@ export async function buildFiscalPeriodSummary(
     boxes: [
       {
         code: "01",
-        label: "Ingresos computables (bases facturas)",
+        label: "Ingresos computables (facturas + marketplace)",
         value: incomeBase,
       },
       {
@@ -310,8 +346,12 @@ export async function buildFiscalPeriodSummary(
       baseIntracom,
       baseExport,
       baseCanarias,
+      baseMarketplaceCollected,
       irpfWithheld,
       incomeBase,
+      invoiceIncomeBase,
+      marketplaceCount: marketplace.length,
+      marketplaceIncomeBase,
     },
     expenses: {
       count: expenses.length,

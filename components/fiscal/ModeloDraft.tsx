@@ -19,8 +19,8 @@ export function ModeloDraft({ title, model, summary }: Props) {
 
   const how =
     model === "303"
-      ? "IVA que cobraste en facturas − IVA de tus gastos deducibles."
-      : "20 % de (ingresos − gastos) − retenciones que ya te hicieron en facturas.";
+      ? "IVA de facturas W3D + Amazon taxable − IVA de gastos deducibles."
+      : "20 % de (ingresos W3D + marketplace − gastos) − retenciones en facturas.";
 
   return (
     <section className="card-panel space-y-4 p-5 sm:p-6">

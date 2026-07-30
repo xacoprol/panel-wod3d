@@ -128,6 +128,7 @@ const NAV: NavItem[] = [
     children: [
       { href: "/fiscal", label: "Resumen" },
       { href: "/fiscal/expenses", label: "Gastos" },
+      { href: "/fiscal/income", label: "Ingresos marketplace" },
       { href: "/fiscal/303", label: "Modelo 303" },
       { href: "/fiscal/130", label: "Modelo 130" },
     ],

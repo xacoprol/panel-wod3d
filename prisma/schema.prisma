@@ -311,6 +311,36 @@ model Expense {
   @@index([invoiceNumber])
 }
 
+// ─── Fiscal: ingresos marketplace (Amazon / Shopify) ─────────────────────────
+
+model MarketplaceIncome {
+  id              String   @id @default(cuid())
+  channel         String // AMAZON | SHOPIFY
+  issueDate       DateTime
+  externalKey     String // unique per channel (dedupe import)
+  externalRef     String? // VAT Invoice Number / ref externa
+  orderId         String?
+  sku             String?
+  description     String?
+  transactionType String // SHIPMENT | RETURN | REFUND | …
+  vatStatus       String // TAXABLE | EXEMPT | MARKETPLACE_COLLECTED
+  vatRate         Float    @default(0)
+  subtotal        Decimal // base sin IVA (puede ser negativa)
+  vatAmount       Decimal
+  total           Decimal
+  shipToCountry   String?
+  sourceFile      String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([channel, externalKey])
+  @@index([issueDate])
+  @@index([channel])
+  @@index([vatStatus])
+  @@index([externalRef])
+}
+
 // ─── Recurring invoices ─────────────────────────────────────────────────────
 
 model RecurringInvoiceTemplate {
