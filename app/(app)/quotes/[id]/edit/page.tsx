@@ -9,14 +9,14 @@ export default async function EditQuotePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [quote, clients, settings] = await Promise.all([
+  const [quote, settings] = await Promise.all([
     prisma.quote.findUnique({
       where: { id },
-      include: { lines: { orderBy: { sortOrder: "asc" } }, invoice: true },
-    }),
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      include: {
+        client: { select: { id: true, name: true, nif: true, email: true } },
+        lines: { orderBy: { sortOrder: "asc" } },
+        invoice: true,
+      },
     }),
     prisma.companySettings.findFirst(),
   ]);
@@ -41,7 +41,7 @@ export default async function EditQuotePage({
         ← Volver al presupuesto
       </Link>
       <QuoteForm
-        clients={clients}
+        defaultClient={quote.client}
         defaultVatRate={settings?.defaultVatRate ?? 21}
         quote={{
           id: quote.id,

@@ -9,14 +9,13 @@ export default async function EditInvoicePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [invoice, clients, series, settings] = await Promise.all([
+  const [invoice, series, settings] = await Promise.all([
     prisma.invoice.findUnique({
       where: { id },
-      include: { lines: { orderBy: { sortOrder: "asc" } } },
-    }),
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      include: {
+        client: { select: { id: true, name: true, nif: true, email: true } },
+        lines: { orderBy: { sortOrder: "asc" } },
+      },
     }),
     prisma.invoiceSeries.findMany({ orderBy: { prefix: "asc" } }),
     prisma.companySettings.findFirst(),
@@ -42,12 +41,12 @@ export default async function EditInvoicePage({
         ← Volver a la factura
       </Link>
       <InvoiceForm
-        clients={clients}
         series={series.map((s) => ({
           id: s.id,
           name: s.name,
           prefix: s.prefix,
         }))}
+        defaultClient={invoice.client}
         defaultVatRate={settings?.defaultVatRate ?? 21}
         defaultIrpfRate={settings?.defaultIrpfRate ?? 15}
         invoice={{

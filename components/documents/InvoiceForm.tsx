@@ -11,6 +11,7 @@ import {
   DocumentFormShell,
   DocumentFormStickyBar,
 } from "@/components/documents/DocumentFormShell";
+import { ClientCombobox, type ClientOption } from "@/components/clients/ClientCombobox";
 import {
   createInvoice,
   updateInvoice,
@@ -19,7 +20,6 @@ import {
 import { DateInput } from "@/components/ui/DateInput";
 import { calculateDocument, formatCurrency } from "@/lib/calculations";
 
-type ClientOption = { id: string; name: string };
 type SeriesOption = {
   id: string;
   name: string;
@@ -43,9 +43,8 @@ type InvoiceData = {
 };
 
 type Props = {
-  clients: ClientOption[];
   series: SeriesOption[];
-  defaultClientId?: string;
+  defaultClient?: ClientOption | null;
   defaultVatRate?: number;
   defaultIrpfRate?: number;
   invoice?: InvoiceData;
@@ -63,9 +62,8 @@ function plusDaysISO(days: number) {
 }
 
 export function InvoiceForm({
-  clients,
   series,
-  defaultClientId,
+  defaultClient = null,
   defaultVatRate = 21,
   defaultIrpfRate = 15,
   invoice,
@@ -144,23 +142,7 @@ export function InvoiceForm({
               </div>
             )}
             <div className={invoice ? "sm:col-span-2" : undefined}>
-              <label className="label" htmlFor="clientId">
-                Cliente
-              </label>
-              <select
-                id="clientId"
-                name="clientId"
-                className="input"
-                required
-                defaultValue={invoice?.clientId ?? defaultClientId ?? ""}
-              >
-                <option value="">Seleccionar…</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <ClientCombobox defaultClient={defaultClient} />
             </div>
             <div>
               <label className="label" htmlFor="issueDate">

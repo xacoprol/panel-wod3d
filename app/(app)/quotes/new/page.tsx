@@ -9,13 +9,15 @@ export default async function NewQuotePage({
   searchParams: Promise<{ clientId?: string }>;
 }) {
   const { clientId } = await searchParams;
-  const [clients, settings, nextNumber] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
+  const [settings, nextNumber, defaultClient] = await Promise.all([
     prisma.companySettings.findFirst(),
     previewNextQuoteNumber(),
+    clientId
+      ? prisma.client.findUnique({
+          where: { id: clientId },
+          select: { id: true, name: true, nif: true, email: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -27,8 +29,7 @@ export default async function NewQuotePage({
         ← Presupuestos
       </Link>
       <QuoteForm
-        clients={clients}
-        defaultClientId={clientId}
+        defaultClient={defaultClient}
         defaultVatRate={settings?.defaultVatRate ?? 21}
         nextNumberPreview={nextNumber}
       />

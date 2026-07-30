@@ -57,6 +57,41 @@ export async function createClient(
   redirect(`/clients/${client.id}`);
 }
 
+/** Crea cliente sin redirect — para modal del combobox. */
+export async function createClientQuick(
+  formData: FormData
+): Promise<
+  | {
+      ok: true;
+      client: { id: string; name: string; nif: string; email: string | null };
+    }
+  | { ok: false; error?: string; fieldErrors?: Record<string, string> }
+> {
+  await requireAuth();
+  const data = parseClientForm(formData);
+  const fieldErrors = validateClient(data);
+  if (Object.keys(fieldErrors).length) return { ok: false, fieldErrors };
+
+  try {
+    const client = await prisma.client.create({ data });
+    revalidatePath("/clients");
+    return {
+      ok: true,
+      client: {
+        id: client.id,
+        name: client.name,
+        nif: client.nif,
+        email: client.email,
+      },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "No se pudo crear el cliente",
+    };
+  }
+}
+
 export async function updateClient(
   id: string,
   _prev: ClientFormState,

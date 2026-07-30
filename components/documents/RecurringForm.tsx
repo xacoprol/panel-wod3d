@@ -11,12 +11,13 @@ import {
   updateRecurring,
   type RecurringFormState,
 } from "@/app/(app)/recurring/actions";
+import { ClientCombobox, type ClientOption } from "@/components/clients/ClientCombobox";
 import { VAT_OPERATION_TYPES } from "@/lib/recurring";
 import { DateInput } from "@/components/ui/DateInput";
 
 type Props = {
-  clients: { id: string; name: string }[];
   series: { id: string; name: string; prefix: string; isDefault?: boolean }[];
+  defaultClient?: ClientOption | null;
   defaultVatRate?: number;
   defaultIrpfRate?: number;
   template?: {
@@ -46,8 +47,8 @@ function todayISO() {
 }
 
 export function RecurringForm({
-  clients,
   series,
+  defaultClient = null,
   defaultVatRate = 21,
   defaultIrpfRate = 15,
   template,
@@ -89,23 +90,7 @@ export function RecurringForm({
           />
         </div>
         <div>
-          <label className="label" htmlFor="clientId">
-            Cliente
-          </label>
-          <select
-            id="clientId"
-            name="clientId"
-            className="input"
-            required
-            defaultValue={template?.clientId ?? ""}
-          >
-            <option value="">Seleccionar…</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <ClientCombobox defaultClient={defaultClient} />
         </div>
         <div>
           <label className="label" htmlFor="seriesId">

@@ -3,11 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { RecurringForm } from "@/components/documents/RecurringForm";
 
 export default async function NewRecurringPage() {
-  const [clients, series, settings] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
+  const [series, settings] = await Promise.all([
     prisma.invoiceSeries.findMany({
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
     }),
@@ -26,7 +22,6 @@ export default async function NewRecurringPage() {
       </div>
       <div className="card-panel p-6">
         <RecurringForm
-          clients={clients}
           series={series.map((s) => ({
             id: s.id,
             name: s.name,

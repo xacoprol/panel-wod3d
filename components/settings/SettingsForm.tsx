@@ -310,7 +310,8 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
             Plantilla de email
           </h2>
           <p className="text-xs text-ink-muted">
-            Variables: {"{{number}}"}, {"{{company}}"}
+            Variables: {"{{number}}"} (nº documento), {"{{company}}"} (empresa),{" "}
+            {"{{client}}"} (nombre del cliente)
           </p>
           <div>
             <label className="label" htmlFor="emailSubject">

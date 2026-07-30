@@ -78,9 +78,10 @@ export async function sendMail(opts: {
 
 export function fillEmailTemplate(
   template: string,
-  vars: { number: string; company: string }
+  vars: { number: string; company: string; client: string }
 ): string {
   return template
     .replaceAll("{{number}}", vars.number)
-    .replaceAll("{{company}}", vars.company);
+    .replaceAll("{{company}}", vars.company)
+    .replaceAll("{{client}}", vars.client);
 }

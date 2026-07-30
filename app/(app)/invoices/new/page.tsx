@@ -9,15 +9,17 @@ export default async function NewInvoicePage({
   searchParams: Promise<{ clientId?: string }>;
 }) {
   const { clientId } = await searchParams;
-  const [clients, series, settings] = await Promise.all([
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
+  const [series, settings, defaultClient] = await Promise.all([
     prisma.invoiceSeries.findMany({
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
     }),
     prisma.companySettings.findFirst(),
+    clientId
+      ? prisma.client.findUnique({
+          where: { id: clientId },
+          select: { id: true, name: true, nif: true, email: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   const seriesOptions = await Promise.all(
@@ -42,9 +44,8 @@ export default async function NewInvoicePage({
         ← Facturas
       </Link>
       <InvoiceForm
-        clients={clients}
         series={seriesOptions}
-        defaultClientId={clientId}
+        defaultClient={defaultClient}
         defaultVatRate={settings?.defaultVatRate ?? 21}
         defaultIrpfRate={settings?.defaultIrpfRate ?? 15}
         nextNumberPreview={defaultSeries?.nextNumberPreview}

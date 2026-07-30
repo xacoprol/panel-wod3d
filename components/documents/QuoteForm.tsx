@@ -11,11 +11,11 @@ import {
   DocumentFormShell,
   DocumentFormStickyBar,
 } from "@/components/documents/DocumentFormShell";
+import { ClientCombobox, type ClientOption } from "@/components/clients/ClientCombobox";
 import { createQuote, updateQuote, type DocFormState } from "@/app/(app)/quotes/actions";
 import { DateInput } from "@/components/ui/DateInput";
 import { calculateDocument, formatCurrency } from "@/lib/calculations";
 
-type ClientOption = { id: string; name: string };
 type QuoteData = {
   id: string;
   clientId: string;
@@ -30,8 +30,7 @@ type QuoteData = {
 };
 
 type Props = {
-  clients: ClientOption[];
-  defaultClientId?: string;
+  defaultClient?: ClientOption | null;
   defaultVatRate?: number;
   quote?: QuoteData;
   nextNumberPreview?: string;
@@ -48,8 +47,7 @@ function plusDaysISO(days: number) {
 }
 
 export function QuoteForm({
-  clients,
-  defaultClientId,
+  defaultClient = null,
   defaultVatRate = 21,
   quote,
   nextNumberPreview,
@@ -98,23 +96,7 @@ export function QuoteForm({
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="label" htmlFor="clientId">
-                Cliente
-              </label>
-              <select
-                id="clientId"
-                name="clientId"
-                className="input"
-                required
-                defaultValue={quote?.clientId ?? defaultClientId ?? ""}
-              >
-                <option value="">Seleccionar…</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <ClientCombobox defaultClient={defaultClient} />
             </div>
             <div>
               <label className="label" htmlFor="issueDate">

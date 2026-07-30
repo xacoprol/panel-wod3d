@@ -44,18 +44,19 @@ export async function getSendDocumentDraft(
       include: { client: true },
     });
     if (!quote) return { error: "Presupuesto no encontrado" };
+    const client = quote.client.name;
     return {
       configured: isSmtpConfigured(),
       configHint: smtpConfigHint(),
       to: quote.client.email?.trim() || "",
       subject: fillEmailTemplate(
         settings?.emailSubject ?? "Documento {{number}} de {{company}}",
-        { number: quote.fullNumber, company }
+        { number: quote.fullNumber, company, client }
       ),
       body: fillEmailTemplate(
         settings?.emailBody ??
-          "Adjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
-        { number: quote.fullNumber, company }
+          "Hola {{client}},\n\nAdjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
+        { number: quote.fullNumber, company, client }
       ),
       docLabel: "Presupuesto",
       fullNumber: quote.fullNumber,
@@ -68,18 +69,19 @@ export async function getSendDocumentDraft(
     include: { client: true },
   });
   if (!invoice) return { error: "Factura no encontrada" };
+  const client = invoice.client.name;
   return {
     configured: isSmtpConfigured(),
     configHint: smtpConfigHint(),
     to: invoice.client.email?.trim() || "",
     subject: fillEmailTemplate(
       settings?.emailSubject ?? "Documento {{number}} de {{company}}",
-      { number: invoice.fullNumber, company }
+      { number: invoice.fullNumber, company, client }
     ),
     body: fillEmailTemplate(
       settings?.emailBody ??
-        "Adjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
-      { number: invoice.fullNumber, company }
+        "Hola {{client}},\n\nAdjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
+      { number: invoice.fullNumber, company, client }
     ),
     docLabel: "Factura",
     fullNumber: invoice.fullNumber,

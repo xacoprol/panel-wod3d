@@ -9,14 +9,13 @@ export default async function EditRecurringPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [template, clients, series, settings] = await Promise.all([
+  const [template, series, settings] = await Promise.all([
     prisma.recurringInvoiceTemplate.findUnique({
       where: { id },
-      include: { lines: { orderBy: { sortOrder: "asc" } } },
-    }),
-    prisma.client.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      include: {
+        client: { select: { id: true, name: true, nif: true, email: true } },
+        lines: { orderBy: { sortOrder: "asc" } },
+      },
     }),
     prisma.invoiceSeries.findMany({ orderBy: { prefix: "asc" } }),
     prisma.companySettings.findFirst(),
@@ -38,13 +37,13 @@ export default async function EditRecurringPage({
       </div>
       <div className="card-panel p-6">
         <RecurringForm
-          clients={clients}
           series={series.map((s) => ({
             id: s.id,
             name: s.name,
             prefix: s.prefix,
             isDefault: s.isDefault,
           }))}
+          defaultClient={template.client}
           defaultVatRate={settings?.defaultVatRate ?? 21}
           defaultIrpfRate={settings?.defaultIrpfRate ?? 15}
           template={{
