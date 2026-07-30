@@ -24,6 +24,14 @@ const ALLOWED_MIME = new Set([
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
+/** Prefer Lite: más RPM en free tier. Fallback si el modelo no existe o hay 429. */
+const DEFAULT_MODELS = [
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-1.5-flash",
+];
+
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
@@ -37,11 +45,12 @@ function getGeminiApiKey(): string | null {
   );
 }
 
-function getGeminiModel(): string {
-  return (
-    process.env.GEMINI_MODEL?.trim() ||
-    "gemini-2.0-flash"
-  );
+function getModelCandidates(): string[] {
+  const preferred = process.env.GEMINI_MODEL?.trim();
+  const list = preferred
+    ? [preferred, ...DEFAULT_MODELS.filter((m) => m !== preferred)]
+    : [...DEFAULT_MODELS];
+  return [...new Set(list)];
 }
 
 function categoryIds(): string[] {
@@ -56,7 +65,6 @@ function normalizeCategory(raw: unknown): string {
 function normalizeVatRate(raw: unknown): number {
   const n = Number(raw);
   if (![0, 4, 10, 21].includes(n)) {
-    // nearest common rate
     if (!Number.isFinite(n) || n <= 0) return 21;
     if (n < 2) return 0;
     if (n < 7) return 4;
@@ -78,60 +86,26 @@ function normalizeDate(raw: unknown): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export function geminiConfigured(): boolean {
   return Boolean(getGeminiApiKey());
 }
 
-export async function parseExpenseDocument(file: {
-  buffer: Buffer;
-  mimeType: string;
-  fileName: string;
-}): Promise<ParsedExpenseDraft> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error(
-      "Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en las variables de entorno"
-    );
-  }
+type GeminiHttpResult =
+  | { ok: true; text: string }
+  | { ok: false; status: number; body: string };
 
-  const mime = file.mimeType.split(";")[0].trim().toLowerCase();
-  if (!ALLOWED_MIME.has(mime)) {
-    throw new Error(
-      "Formato no soportado. Usa PDF, JPG, PNG o WebP"
-    );
-  }
-  if (file.buffer.byteLength > MAX_BYTES) {
-    throw new Error("El archivo supera 8 MB");
-  }
-
-  const categories = categoryIds().join(", ");
-  const prompt = `Eres un asistente fiscal español. Extrae los datos de esta factura o ticket de GASTO (factura recibida / compra).
-Devuelve SOLO un JSON válido con esta forma exacta:
-{
-  "issueDate": "YYYY-MM-DD",
-  "supplierName": "nombre del emisor/proveedor",
-  "supplierNif": "NIF/CIF del proveedor o null",
-  "description": "concepto breve en español o null",
-  "category": "una de: ${categories}",
-  "subtotal": 0,
-  "vatRate": 21,
-  "vatAmount": 0,
-  "total": 0,
-  "notes": "cualquier duda o dato ambiguo, o null",
-  "confidence": "high" | "medium" | "low"
-}
-
-Reglas:
-- Importes en euros (número, no string). Usa punto decimal.
-- subtotal = base imponible (sin IVA). vatAmount = cuota IVA. total = a pagar.
-- Si hay varios tipos de IVA, usa el predominante o el del total; anótalo en notes.
-- Si no hay IVA (exento), vatRate=0, vatAmount=0, total=subtotal.
-- No inventes NIF: si no se lee claramente, null.
-- La fecha es la de la factura/ticket, no la de hoy.
-- category: elige la más razonable para un autónomo (SOFTWARE, SUMINISTROS, MATERIAL, DIETAS, PROFESIONALES, OTROS).`;
-
-  const model = getGeminiModel();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+async function callGemini(opts: {
+  apiKey: string;
+  model: string;
+  mime: string;
+  base64: string;
+  prompt: string;
+}): Promise<GeminiHttpResult> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model)}:generateContent?key=${encodeURIComponent(opts.apiKey)}`;
 
   const res = await fetch(url, {
     method: "POST",
@@ -141,11 +115,11 @@ Reglas:
         {
           role: "user",
           parts: [
-            { text: prompt },
+            { text: opts.prompt },
             {
               inline_data: {
-                mime_type: mime,
-                data: file.buffer.toString("base64"),
+                mime_type: opts.mime,
+                data: opts.base64,
               },
             },
           ],
@@ -160,17 +134,7 @@ Reglas:
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    if (res.status === 429) {
-      throw new Error("Límite de Gemini alcanzado. Prueba en unos minutos.");
-    }
-    if (res.status === 400 || res.status === 403) {
-      throw new Error(
-        `Gemini rechazó la petición (${res.status}). Revisa la API key y el modelo.`
-      );
-    }
-    throw new Error(
-      `Error Gemini ${res.status}${body ? `: ${body.slice(0, 200)}` : ""}`
-    );
+    return { ok: false, status: res.status, body };
   }
 
   const json = (await res.json()) as {
@@ -182,6 +146,10 @@ Reglas:
   const text =
     json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ??
     "";
+  return { ok: true, text };
+}
+
+function parseDraftFromText(text: string): ParsedExpenseDraft {
   if (!text.trim()) {
     throw new Error("Gemini no devolvió datos. Prueba con otra imagen/PDF.");
   }
@@ -233,4 +201,101 @@ Reglas:
     notes: String(parsed.notes ?? "").trim() || null,
     confidence,
   };
+}
+
+export async function parseExpenseDocument(file: {
+  buffer: Buffer;
+  mimeType: string;
+  fileName: string;
+}): Promise<ParsedExpenseDraft> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error(
+      "Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en las variables de entorno"
+    );
+  }
+
+  const mime = file.mimeType.split(";")[0].trim().toLowerCase();
+  if (!ALLOWED_MIME.has(mime)) {
+    throw new Error("Formato no soportado. Usa PDF, JPG, PNG o WebP");
+  }
+  if (file.buffer.byteLength > MAX_BYTES) {
+    throw new Error("El archivo supera 8 MB");
+  }
+
+  const categories = categoryIds().join(", ");
+  const prompt = `Eres un asistente fiscal español. Extrae los datos de esta factura o ticket de GASTO (factura recibida / compra).
+Devuelve SOLO un JSON válido con esta forma exacta:
+{
+  "issueDate": "YYYY-MM-DD",
+  "supplierName": "nombre del emisor/proveedor",
+  "supplierNif": "NIF/CIF del proveedor o null",
+  "description": "concepto breve en español o null",
+  "category": "una de: ${categories}",
+  "subtotal": 0,
+  "vatRate": 21,
+  "vatAmount": 0,
+  "total": 0,
+  "notes": "cualquier duda o dato ambiguo, o null",
+  "confidence": "high" | "medium" | "low"
+}
+
+Reglas:
+- Importes en euros (número, no string). Usa punto decimal.
+- subtotal = base imponible (sin IVA). vatAmount = cuota IVA. total = a pagar.
+- Si hay varios tipos de IVA, usa el predominante o el del total; anótalo en notes.
+- Si no hay IVA (exento), vatRate=0, vatAmount=0, total=subtotal.
+- No inventes NIF: si no se lee claramente, null.
+- La fecha es la de la factura/ticket, no la de hoy.
+- category: elige la más razonable para un autónomo (SOFTWARE, SUMINISTROS, MATERIAL, DIETAS, PROFESIONALES, OTROS).`;
+
+  const base64 = file.buffer.toString("base64");
+  const models = getModelCandidates();
+  let last429 = false;
+  let lastError = "";
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await sleep(1500 * attempt);
+      }
+      const result = await callGemini({
+        apiKey,
+        model,
+        mime,
+        base64,
+        prompt,
+      });
+
+      if (result.ok) {
+        return parseDraftFromText(result.text);
+      }
+
+      lastError = result.body.slice(0, 200);
+      if (result.status === 429) {
+        last429 = true;
+        continue; // retry same model, then next
+      }
+      if (result.status === 404) {
+        break; // try next model
+      }
+      if (result.status === 400 || result.status === 403) {
+        throw new Error(
+          `Gemini rechazó la petición (${result.status}). Revisa la API key y el modelo${lastError ? `: ${lastError}` : "."}`
+        );
+      }
+      throw new Error(
+        `Error Gemini ${result.status}${lastError ? `: ${lastError}` : ""}`
+      );
+    }
+  }
+
+  if (last429) {
+    throw new Error(
+      "Límite gratis de Gemini agotado (pocas peticiones/minuto). Espera 1 minuto o activa facturación en Google AI Studio (pay-as-you-go, suele costar céntimos)."
+    );
+  }
+  throw new Error(
+    `No se pudo usar Gemini${lastError ? `: ${lastError}` : "."}`
+  );
 }
