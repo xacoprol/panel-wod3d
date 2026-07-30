@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Nexo — Panel de facturación",
-    short_name: "Nexo",
+    name: "Vexo — Panel de facturación",
+    short_name: "Vexo",
     description: "Gestión de clientes, presupuestos y facturas",
     start_url: "/dashboard",
     scope: "/",

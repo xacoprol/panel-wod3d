@@ -34,7 +34,7 @@ function LoginForm() {
         <div className="flex flex-col items-center gap-3 text-center">
           <img
             src="/brand/logo.png"
-            alt="Nexo"
+            alt="Vexo"
             width={280}
             height={46}
             className="h-10 w-auto object-contain"

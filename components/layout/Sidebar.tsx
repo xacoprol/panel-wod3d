@@ -22,7 +22,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
         <Link href="/dashboard" className="block">
           <Image
             src="/brand/logo-on-dark.png"
-            alt="Nexo"
+            alt="Vexo"
             width={160}
             height={26}
             className="h-7 w-auto object-contain"
@@ -53,7 +53,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
         })}
       </nav>
       <div className="border-t border-white/10 p-3 text-xs text-white/40">
-        Nexo
+        Vexo
       </div>
     </aside>
   );

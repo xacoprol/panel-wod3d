@@ -18,13 +18,13 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nexo — Panel de facturación",
+  title: "Vexo — Panel de facturación",
   description: "Gestión de clientes, presupuestos y facturas",
-  applicationName: "Nexo",
+  applicationName: "Vexo",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Nexo",
+    title: "Vexo",
   },
   formatDetection: {
     telephone: false,

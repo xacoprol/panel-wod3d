@@ -186,7 +186,7 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
               Apariencia · UX
             </h2>
             <p className="mt-1 text-xs text-ink-muted">
-              Colores de la interfaz Nexo. Se aplican al guardar.
+              Colores de la interfaz Vexo. Se aplican al guardar.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
