@@ -33,7 +33,7 @@ export function FiscalPeriodNav({
       <Link href={href(next.year, next.quarter)} className="btn-ghost text-sm">
         {next.quarter}T {next.year} →
       </Link>
-      <div className="ml-auto flex flex-wrap gap-1">
+      <div className="ml-auto flex flex-wrap items-center gap-1">
         {([1, 2, 3, 4] as const).map((q) => (
           <Link
             key={q}
@@ -47,6 +47,18 @@ export function FiscalPeriodNav({
             {q}T
           </Link>
         ))}
+        <Link
+          href={`/fiscal/annual?year=${year}`}
+          className="rounded-md px-2.5 py-1 text-xs font-medium bg-line/40 text-ink-muted hover:bg-line"
+        >
+          Año
+        </Link>
+        <Link
+          href={`/fiscal/390?year=${year}`}
+          className="rounded-md px-2.5 py-1 text-xs font-medium bg-line/40 text-ink-muted hover:bg-line"
+        >
+          390
+        </Link>
       </div>
     </div>
   );

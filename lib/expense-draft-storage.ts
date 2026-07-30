@@ -20,7 +20,13 @@ export function consumeExpenseDraft(): ParsedExpenseDraft | null {
   if (!raw) return null;
   sessionStorage.removeItem(EXPENSE_DRAFT_KEY);
   try {
-    return JSON.parse(raw) as ParsedExpenseDraft;
+    const draft = JSON.parse(raw) as ParsedExpenseDraft;
+    return {
+      ...draft,
+      activityFit: draft.activityFit ?? "ok",
+      activityFitReason: draft.activityFitReason ?? null,
+      homeOfficeTip: draft.homeOfficeTip ?? null,
+    };
   } catch {
     return null;
   }
@@ -37,7 +43,13 @@ export function peekExpenseDraftQueue(): ExpenseQueueItem[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as ExpenseQueueItem[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => ({
+      ...item,
+      activityFit: item.activityFit ?? "ok",
+      activityFitReason: item.activityFitReason ?? null,
+      homeOfficeTip: item.homeOfficeTip ?? null,
+    }));
   } catch {
     return [];
   }

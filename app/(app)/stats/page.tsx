@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/calculations";
 import { buildYearStats } from "@/lib/stats";
+import { buildFiscalYearSummary } from "@/lib/fiscal";
 import {
   CashflowChart,
   IncomeMixChart,
@@ -20,8 +21,9 @@ export default async function StatsPage({
       ? yearRaw
       : nowY;
 
-  const [stats, invBounds, mktBounds] = await Promise.all([
+  const [stats, fiscal, invBounds, mktBounds] = await Promise.all([
     buildYearStats(year),
+    buildFiscalYearSummary(year),
     prisma.invoice.aggregate({
       _min: { issueDate: true },
       _max: { issueDate: true },
@@ -136,6 +138,77 @@ export default async function StatsPage({
           </div>
         ))}
       </div>
+
+      <section className="card-panel p-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Fiscal del año</h2>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              Estimaciones 303 / 130 (suma de trimestres)
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/fiscal/annual?year=${year}`}
+              className="text-xs text-accent hover:underline"
+            >
+              Ver resumen anual
+            </Link>
+            <Link
+              href={`/fiscal/390?year=${year}`}
+              className="text-xs text-accent hover:underline"
+            >
+              Modelo 390
+            </Link>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              label: "IVA neto (303)",
+              value: fiscal.ivaNetYear,
+              hint:
+                fiscal.ivaNetYear >= 0
+                  ? "A ingresar (suma T)"
+                  : "A compensar (suma T)",
+              href: `/fiscal/303?year=${year}`,
+            },
+            {
+              label: "IRPF fraccionado (130)",
+              value: fiscal.irpfPaymentsYear,
+              hint: "Suma pagos T",
+              href: `/fiscal/130?year=${year}`,
+            },
+            {
+              label: "Retenciones IRPF",
+              value: fiscal.issued.irpfWithheld,
+              hint: "Facturas emitidas",
+            },
+            {
+              label: "IVA soportado",
+              value: fiscal.expenses.vatDeductible,
+              hint: "Gastos deducibles",
+              href: "/fiscal/expenses",
+            },
+          ].map((card) => (
+            <div key={card.label} className="rounded-lg border border-line/60 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+                {card.label}
+              </p>
+              <p className="mt-1.5 font-mono text-lg font-semibold tracking-tight">
+                {"href" in card && card.href ? (
+                  <Link href={card.href} className="hover:text-accent">
+                    {formatCurrency(card.value)}
+                  </Link>
+                ) : (
+                  formatCurrency(card.value)
+                )}
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">{card.hint}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="card-panel p-4">

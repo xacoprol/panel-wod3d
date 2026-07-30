@@ -1,5 +1,17 @@
 import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
 
+/** Perfil de actividad WOD3D para valorar si un gasto encaja. */
+export const WOD3D_ACTIVITY_PROFILE = `WOD3D (autónomo/pyme) fabrica y vende:
+- Impresión 3D (filamentos PLA/PETG/ABS, resina, impresoras, boquillas, piezas)
+- Grabado láser (máquinas láser, lentes, materiales grabables, metacrilato, madera, acero)
+- Joyería grabada a láser y llaveros personalizados en PLA
+- Parches con velcro para mochilas / merchandising textil
+- Software, hosting, marketplace (Amazon/Shopify), packaging, envíos, publicidad online
+Trabaja desde casa (home office): suministros del hogar (luz, agua, internet, gas, comunidad) PUEDEN ser parcialmente deducibles (solo el % afecto a la actividad), no marcarlos como sospechosos totales; sí avisar de prorrateo.
+NO es actividad típica: restauración/ocio personal, moda no relacionada, viajes vacacionales, gimnasio, mascotas personales, electrónica de consumo sin vínculo (TV, consolas), reformas estéticas de vivienda no afectas, etc.`;
+
+export type ActivityFit = "ok" | "partial" | "suspicious";
+
 export type ParsedExpenseDraft = {
   issueDate: string; // YYYY-MM-DD
   supplierName: string;
@@ -13,6 +25,12 @@ export type ParsedExpenseDraft = {
   total: number;
   notes: string | null;
   confidence: "high" | "medium" | "low";
+  /** Encaje con la actividad WOD3D */
+  activityFit: ActivityFit;
+  /** Motivo breve en español (siempre si no es ok) */
+  activityFitReason: string | null;
+  /** Consejo home office / prorrateo si aplica */
+  homeOfficeTip: string | null;
 };
 
 const ALLOWED_MIME = new Set([
@@ -190,6 +208,12 @@ async function callGemini(opts: {
   return { ok: true, text };
 }
 
+function normalizeActivityFit(raw: unknown): ActivityFit {
+  const s = String(raw ?? "ok").toLowerCase().trim();
+  if (s === "partial" || s === "suspicious") return s;
+  return "ok";
+}
+
 function parseDraftFromText(text: string): ParsedExpenseDraft {
   if (!text.trim()) {
     throw new Error("Gemini no devolvió datos. Prueba con otra imagen/PDF.");
@@ -229,6 +253,11 @@ function parseDraftFromText(text: string): ParsedExpenseDraft {
     );
   }
 
+  const activityFit = normalizeActivityFit(parsed.activityFit);
+  const activityFitReason =
+    String(parsed.activityFitReason ?? "").trim() || null;
+  const homeOfficeTip = String(parsed.homeOfficeTip ?? "").trim() || null;
+
   return {
     issueDate: normalizeDate(parsed.issueDate),
     supplierName,
@@ -242,6 +271,10 @@ function parseDraftFromText(text: string): ParsedExpenseDraft {
     total,
     notes: String(parsed.notes ?? "").trim() || null,
     confidence,
+    activityFit,
+    activityFitReason:
+      activityFit === "ok" ? activityFitReason : activityFitReason ?? "Revisa si este gasto encaja con tu actividad.",
+    homeOfficeTip,
   };
 }
 
@@ -266,7 +299,11 @@ export async function parseExpenseDocument(file: {
   }
 
   const categories = categoryIds().join(", ");
-  const prompt = `Eres un asistente fiscal español. Extrae los datos de esta factura o ticket de GASTO (factura recibida / compra).
+  const prompt = `Eres un asistente fiscal español. Extrae los datos de esta factura o ticket de GASTO (factura recibida / compra) para la empresa WOD3D.
+
+PERFIL DE ACTIVIDAD:
+${WOD3D_ACTIVITY_PROFILE}
+
 Devuelve SOLO un JSON válido con esta forma exacta:
 {
   "issueDate": "YYYY-MM-DD",
@@ -280,10 +317,13 @@ Devuelve SOLO un JSON válido con esta forma exacta:
   "vatAmount": 0,
   "total": 0,
   "notes": "cualquier duda o dato ambiguo, o null",
-  "confidence": "high" | "medium" | "low"
+  "confidence": "high" | "medium" | "low",
+  "activityFit": "ok" | "partial" | "suspicious",
+  "activityFitReason": "frase corta en español explicando el encaje, o null si ok claro",
+  "homeOfficeTip": "si es suministro hogar (luz/agua/internet/gas/comunidad), consejo de prorrateo % afecto; si no aplica, null"
 }
 
-Reglas:
+Reglas de extracción:
 - Importes en euros (número, no string). Usa punto decimal.
 - subtotal = base imponible (sin IVA). vatAmount = cuota IVA. total = a pagar.
 - invoiceNumber = nº de factura/ticket del emisor (Factura nº, Nº, Invoice #…). Si no se lee, null.
@@ -291,7 +331,13 @@ Reglas:
 - Si no hay IVA (exento), vatRate=0, vatAmount=0, total=subtotal.
 - No inventes NIF: si no se lee claramente, null.
 - La fecha es la de la factura/ticket, no la de hoy.
-- category: elige la más razonable para un autónomo (SOFTWARE, SUMINISTROS, MATERIAL, DIETAS, PROFESIONALES, OTROS).`;
+- category: elige la más razonable (SOFTWARE, SUMINISTROS, MATERIAL, DIETAS, PROFESIONALES, OTROS).
+
+Reglas activityFit (OBLIGATORIO valorar):
+- "ok": material 3D/láser/joyería/parches, herramientas, packaging, envíos, software/hosting/marketplace, publicidad del negocio, servicios profesionales claros.
+- "partial": suministro del hogar (luz, agua, internet, gas, comunidad, alquiler vivienda) u otro gasto mixto personal+profesional. Pon homeOfficeTip con aviso de deducir solo el % afecto a la actividad (no el 100%). category suele ser SUMINISTROS.
+- "suspicious": parece gasto personal o ajeno a impresión 3D / láser / merchandising (restaurantes, ocio, ropa personal, viajes vacacionales, mascotas, electrónica de consumo sin vínculo, etc.). Explica por qué en activityFitReason. NO bloquees la extracción: solo avisa.
+- En caso de duda razonable → "partial" con motivo, no "ok".`;
 
   const base64 = file.buffer.toString("base64");
   const models = await getModelCandidates(apiKey);

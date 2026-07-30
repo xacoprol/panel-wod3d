@@ -12,9 +12,10 @@ import {
   updateExpense,
   type ExpenseFormState,
 } from "@/app/(app)/fiscal/expenses/actions";
-import type { ParsedExpenseDraft } from "@/lib/gemini-expense";
+import type { ParsedExpenseDraft, ActivityFit } from "@/lib/gemini-expense";
 import { consumeExpenseDraft } from "@/lib/expense-draft-storage";
 import { ButtonPending } from "@/components/ui/ButtonPending";
+import { ActivityFitAlert } from "@/components/fiscal/ActivityFitAlert";
 
 type Props = {
   expense?: Expense;
@@ -56,6 +57,11 @@ export function ExpenseForm({ expense }: Props) {
   const [deductible, setDeductible] = useState(expense?.deductible ?? true);
   const [dateKey, setDateKey] = useState(0);
   const [parseInfo, setParseInfo] = useState<string | null>(null);
+  const [activityFit, setActivityFit] = useState<ActivityFit | null>(null);
+  const [activityFitReason, setActivityFitReason] = useState<string | null>(
+    null
+  );
+  const [homeOfficeTip, setHomeOfficeTip] = useState<string | null>(null);
 
   const vatAmount = useMemo(
     () => Math.round(subtotal * (vatRate / 100) * 100) / 100,
@@ -77,6 +83,12 @@ export function ExpenseForm({ expense }: Props) {
     setSubtotal(draft.subtotal);
     setVatRate(draft.vatRate);
     setNotes(draft.notes ?? "");
+    setActivityFit(draft.activityFit ?? "ok");
+    setActivityFitReason(draft.activityFitReason ?? null);
+    setHomeOfficeTip(draft.homeOfficeTip ?? null);
+    if (draft.activityFit === "suspicious") {
+      setDeductible(false);
+    }
     const conf =
       draft.confidence === "high"
         ? "alta"
@@ -121,6 +133,13 @@ export function ExpenseForm({ expense }: Props) {
             <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
               {parseInfo}
             </p>
+          ) : null}
+          {activityFit ? (
+            <ActivityFitAlert
+              activityFit={activityFit}
+              activityFitReason={activityFitReason}
+              homeOfficeTip={homeOfficeTip}
+            />
           ) : null}
         </section>
       ) : null}

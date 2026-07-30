@@ -47,11 +47,23 @@ export default async function FiscalPage({
           {regime !== "131" ? (
             <Link
               href={`/fiscal/130?year=${year}&q=${quarter}`}
-              className="btn-primary"
+              className="btn-secondary"
             >
               Modelo 130
             </Link>
           ) : null}
+          <Link
+            href={`/fiscal/390?year=${year}`}
+            className="btn-secondary"
+          >
+            Modelo 390
+          </Link>
+          <Link
+            href={`/fiscal/annual?year=${year}`}
+            className="btn-primary"
+          >
+            Resumen anual
+          </Link>
         </div>
       </div>
 

@@ -16,6 +16,8 @@ import {
   saveExpenseDraftQueue,
   type ExpenseQueueItem,
 } from "@/lib/expense-draft-storage";
+import { ActivityFitAlert } from "@/components/fiscal/ActivityFitAlert";
+import type { ActivityFit } from "@/lib/gemini-expense";
 
 type RowStatus = "pending" | "saving" | "saved" | "error";
 
@@ -46,6 +48,9 @@ function toQueueItem(row: Row): ExpenseQueueItem {
     total: row.total,
     notes: row.notes,
     confidence: row.confidence,
+    activityFit: row.activityFit ?? "ok",
+    activityFitReason: row.activityFitReason ?? null,
+    homeOfficeTip: row.homeOfficeTip ?? null,
   };
 }
 
@@ -81,11 +86,17 @@ export function ExpenseBatchReview() {
 
   useEffect(() => {
     const items = peekExpenseDraftQueue();
-    const initial = items.map((item) => ({
-      ...item,
-      deductible: true,
-      status: "pending" as const,
-    }));
+    const initial = items.map((item) => {
+      const fit = (item.activityFit ?? "ok") as ActivityFit;
+      return {
+        ...item,
+        activityFit: fit,
+        activityFitReason: item.activityFitReason ?? null,
+        homeOfficeTip: item.homeOfficeTip ?? null,
+        deductible: fit !== "suspicious",
+        status: "pending" as const,
+      };
+    });
     setRows(initial);
     rowsRef.current = initial;
   }, []);
@@ -269,6 +280,12 @@ export function ExpenseBatchReview() {
                   ) : null}
                 </p>
               ) : null}
+
+              <ActivityFitAlert
+                activityFit={row.activityFit ?? "ok"}
+                activityFitReason={row.activityFitReason}
+                homeOfficeTip={row.homeOfficeTip}
+              />
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div>

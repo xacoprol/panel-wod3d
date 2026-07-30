@@ -10,7 +10,8 @@
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/run-seed.ts",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "icons:generate": "tsx scripts/generate-icons.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
