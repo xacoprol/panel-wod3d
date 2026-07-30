@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calculateDocument } from "@/lib/calculations";
+import { calculateDocument, formatCurrency } from "@/lib/calculations";
 import { allocateInvoiceNumber } from "@/lib/numbering";
 import { advanceDate, type Frequency } from "@/lib/recurring";
+import { isSmtpConfigured, sendMail } from "@/lib/mail";
 import { parseISO, isValid } from "date-fns";
 
 /** Clave de día local YYYY-MM-DD (evita desfases UTC en comparaciones) */
@@ -13,6 +14,80 @@ function dayKey(d: Date): string {
 function localNoonFromKey(key: string): Date {
   const [y, m, d] = key.split("-").map(Number);
   return new Date(y, m - 1, d, 12, 0, 0, 0);
+}
+
+function appBaseUrl(): string {
+  const auth = (process.env.AUTH_URL ?? "").trim().replace(/\/$/, "");
+  if (auth) return auth;
+  const vercel = (process.env.VERCEL_URL ?? "").trim().replace(/\/$/, "");
+  if (vercel) return `https://${vercel}`;
+  return "https://vexo.wod3d.com";
+}
+
+type GenDetail = {
+  templateId: string;
+  name: string;
+  clientName?: string;
+  clientEmail?: string | null;
+  invoiceId?: string;
+  fullNumber?: string;
+  subtotal?: number;
+  vatAmount?: number;
+  total?: number;
+  error?: string;
+};
+
+async function notifyAdminRecurringGenerated(
+  asOfKey: string,
+  details: GenDetail[]
+) {
+  const created = details.filter((d) => d.invoiceId && !d.error);
+  if (!created.length) return { notified: false, reason: "none" };
+  if (!isSmtpConfigured()) return { notified: false, reason: "smtp" };
+
+  const settings = await prisma.companySettings.findFirst();
+  let to = settings?.email?.trim() || "";
+  if (!to) {
+    const user = await prisma.user.findFirst({ orderBy: { createdAt: "asc" } });
+    to = user?.email?.trim() || "";
+  }
+  if (!to) return { notified: false, reason: "no-admin-email" };
+
+  const base = appBaseUrl();
+  const lines = created
+    .map((d) => {
+      const total =
+        d.total != null ? formatCurrency(d.total) : "—";
+      const link = d.invoiceId ? `${base}/invoices/${d.invoiceId}` : "";
+      return [
+        `• ${d.fullNumber ?? "—"} — ${d.clientName ?? "Cliente"} — ${total}`,
+        `  Plantilla: ${d.name}`,
+        d.clientEmail ? `  Email cliente: ${d.clientEmail}` : null,
+        link ? `  Abrir: ${link}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+
+  const subject =
+    created.length === 1
+      ? `Vexo: factura periódica generada (${created[0].fullNumber})`
+      : `Vexo: ${created.length} facturas periódicas generadas`;
+
+  const text = [
+    `Se han generado ${created.length} factura(s) periódica(s) el ${asOfKey}.`,
+    "",
+    "Revísalas y avisa al cliente cuando corresponda:",
+    "",
+    lines,
+    "",
+    `Listado: ${base}/invoices`,
+    `Periódicas: ${base}/recurring`,
+  ].join("\n");
+
+  await sendMail({ to, subject, text });
+  return { notified: true, to, count: created.length };
 }
 
 /**
@@ -28,18 +103,11 @@ async function runGeneration(asOf: Date) {
   });
 
   const asOfKey = dayKey(asOf);
-  const details: {
-    templateId: string;
-    name: string;
-    invoiceId?: string;
-    fullNumber?: string;
-    subtotal?: number;
-    vatAmount?: number;
-    total?: number;
-    error?: string;
-  }[] = [];
+  const details: GenDetail[] = [];
 
   let invoicesCreated = 0;
+  let adminNotify: { notified: boolean; reason?: string; to?: string; count?: number } =
+    { notified: false };
 
   try {
     const candidates = await prisma.recurringInvoiceTemplate.findMany({
@@ -47,7 +115,10 @@ async function runGeneration(asOf: Date) {
         status: "ACTIVA",
         nextRunDate: { not: null },
       },
-      include: { lines: { orderBy: { sortOrder: "asc" } } },
+      include: {
+        lines: { orderBy: { sortOrder: "asc" } },
+        client: { select: { name: true, email: true } },
+      },
     });
 
     const templates = candidates.filter((tpl) => {
@@ -149,6 +220,8 @@ async function runGeneration(asOf: Date) {
         details.push({
           templateId: tpl.id,
           name: tpl.name,
+          clientName: tpl.client.name,
+          clientEmail: tpl.client.email,
           invoiceId: invoice.id,
           fullNumber: invoice.fullNumber,
           subtotal: Number(invoice.subtotal),
@@ -159,8 +232,21 @@ async function runGeneration(asOf: Date) {
         details.push({
           templateId: tpl.id,
           name: tpl.name,
+          clientName: tpl.client.name,
+          clientEmail: tpl.client.email,
           error: err instanceof Error ? err.message : String(err),
         });
+      }
+    }
+
+    if (invoicesCreated > 0) {
+      try {
+        adminNotify = await notifyAdminRecurringGenerated(asOfKey, details);
+      } catch (err) {
+        adminNotify = {
+          notified: false,
+          reason: err instanceof Error ? err.message : String(err),
+        };
       }
     }
 
@@ -171,7 +257,7 @@ async function runGeneration(asOf: Date) {
         success: true,
         templatesChecked: templates.length,
         invoicesCreated,
-        details: JSON.stringify(details),
+        details: JSON.stringify({ items: details, adminNotify }),
       },
     });
 
@@ -181,6 +267,7 @@ async function runGeneration(asOf: Date) {
       templatesChecked: templates.length,
       invoicesCreated,
       details,
+      adminNotify,
       logId: log.id,
     };
   } catch (err) {
