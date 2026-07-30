@@ -45,18 +45,19 @@ export async function getSendDocumentDraft(
     });
     if (!quote) return { error: "Presupuesto no encontrado" };
     const client = quote.client.name;
+    const contact = quote.client.contactPerson?.trim() || client;
     return {
       configured: isSmtpConfigured(),
       configHint: smtpConfigHint(),
       to: quote.client.email?.trim() || "",
       subject: fillEmailTemplate(
         settings?.emailSubject ?? "Documento {{number}} de {{company}}",
-        { number: quote.fullNumber, company, client }
+        { number: quote.fullNumber, company, client, contact }
       ),
       body: fillEmailTemplate(
         settings?.emailBody ??
-          "Hola {{client}},\n\nAdjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
-        { number: quote.fullNumber, company, client }
+          "Hola {{contact}},\n\nAdjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
+        { number: quote.fullNumber, company, client, contact }
       ),
       docLabel: "Presupuesto",
       fullNumber: quote.fullNumber,
@@ -70,18 +71,19 @@ export async function getSendDocumentDraft(
   });
   if (!invoice) return { error: "Factura no encontrada" };
   const client = invoice.client.name;
+  const contact = invoice.client.contactPerson?.trim() || client;
   return {
     configured: isSmtpConfigured(),
     configHint: smtpConfigHint(),
     to: invoice.client.email?.trim() || "",
     subject: fillEmailTemplate(
       settings?.emailSubject ?? "Documento {{number}} de {{company}}",
-      { number: invoice.fullNumber, company, client }
+      { number: invoice.fullNumber, company, client, contact }
     ),
     body: fillEmailTemplate(
       settings?.emailBody ??
-        "Hola {{client}},\n\nAdjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
-      { number: invoice.fullNumber, company, client }
+        "Hola {{contact}},\n\nAdjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}",
+      { number: invoice.fullNumber, company, client, contact }
     ),
     docLabel: "Factura",
     fullNumber: invoice.fullNumber,
