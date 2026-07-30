@@ -317,6 +317,26 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
                 ))}
               </select>
             </div>
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="fiscalRegime">
+                Régimen IRPF (autónomo)
+              </label>
+              <select
+                id="fiscalRegime"
+                name="fiscalRegime"
+                className="input max-w-md"
+                defaultValue={settings.fiscalRegime ?? "130"}
+              >
+                <option value="130">
+                  Modelo 130 — estimación directa
+                </option>
+                <option value="131">Modelo 131 — módulos / estimación objetiva</option>
+              </select>
+              <p className="mt-1 text-xs text-ink-muted">
+                Define qué borrador muestra el módulo Fiscal. La mayoría de
+                autónomos de servicios usan 130.
+              </p>
+            </div>
           </div>
         </section>
 

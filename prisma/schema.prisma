@@ -37,6 +37,8 @@ model CompanySettings {
   logoUrl         String?
   defaultVatRate  Float    @default(21)
   defaultIrpfRate Float    @default(15)
+  /** Régimen IRPF autónomo: 130 estimación directa | 131 módulos */
+  fiscalRegime    String   @default("130")
   emailSubject    String   @default("Documento {{number}} de {{company}}")
   emailBody       String   @default("Adjuntamos el documento {{number}}.\n\nUn saludo,\n{{company}}")
   bankIban        String?
@@ -282,6 +284,29 @@ model CatalogItem {
 
   @@index([name])
   @@index([active])
+}
+
+// ─── Fiscal: facturas recibidas / gastos ─────────────────────────────────────
+
+model Expense {
+  id           String   @id @default(cuid())
+  issueDate    DateTime
+  supplierName String
+  supplierNif  String?
+  description  String?
+  category     String   @default("OTROS") // SUMINISTROS | SOFTWARE | MATERIAL | DIETAS | PROFESIONALES | OTROS
+  subtotal     Decimal
+  vatRate      Float    @default(21)
+  vatAmount    Decimal
+  total        Decimal
+  deductible   Boolean  @default(true) // IVA deducible / gasto computable 130
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([issueDate])
+  @@index([category])
+  @@index([supplierName])
 }
 
 // ─── Recurring invoices ─────────────────────────────────────────────────────

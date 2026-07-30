@@ -66,6 +66,8 @@ export async function updateSettings(
     logoUrl: logoResult.logoUrl,
     defaultVatRate: parseFloat(String(formData.get("defaultVatRate") ?? "21")),
     defaultIrpfRate: parseFloat(String(formData.get("defaultIrpfRate") ?? "15")),
+    fiscalRegime:
+      String(formData.get("fiscalRegime") ?? "130") === "131" ? "131" : "130",
     emailSubject: String(formData.get("emailSubject") ?? "").trim(),
     emailBody: String(formData.get("emailBody") ?? "").trim(),
     bankIban: String(formData.get("bankIban") ?? "").trim() || null,
@@ -134,6 +136,7 @@ export async function updateSettings(
   revalidatePath("/", "layout");
   revalidatePath("/settings");
   revalidatePath("/dashboard");
+  revalidatePath("/fiscal");
   return { success: true };
 }
 

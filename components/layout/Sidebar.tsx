@@ -100,6 +100,19 @@ const NAV = [
     ),
   },
   {
+    href: "/fiscal",
+    label: "Fiscal",
+    icon: (
+      <Icon>
+        <path d="M4 19h16" />
+        <path d="M6 16V9" />
+        <path d="M10 16V5" />
+        <path d="M14 16v-3" />
+        <path d="M18 16V7" />
+      </Icon>
+    ),
+  },
+  {
     href: "/settings",
     label: "Ajustes",
     icon: (
