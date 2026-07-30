@@ -104,7 +104,7 @@ export default async function ClientDetailPage({
         </div>
 
         <div className="space-y-6 lg:col-span-2">
-          <section className="card-panel overflow-hidden">
+          <section className="card-panel overflow-x-auto">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h2 className="text-sm font-semibold">Presupuestos</h2>
               <Link
@@ -146,7 +146,7 @@ export default async function ClientDetailPage({
             </table>
           </section>
 
-          <section className="card-panel overflow-hidden">
+          <section className="card-panel overflow-x-auto">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h2 className="text-sm font-semibold">Facturas</h2>
               <Link

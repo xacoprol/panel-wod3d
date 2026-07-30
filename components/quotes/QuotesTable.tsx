@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/calculations";
@@ -150,29 +158,205 @@ function cellValue(q: QuoteListRow, id: ColumnId): ReactNode {
   }
 }
 
+function QuoteActionsMenu({
+  q,
+  pending,
+  onClose,
+  run,
+  onSend,
+  itemClassName,
+}: {
+  q: QuoteListRow;
+  pending: boolean;
+  onClose: () => void;
+  run: (action: () => Promise<unknown>) => void;
+  onSend: () => void;
+  itemClassName: string;
+}) {
+  return (
+    <>
+      {!q.invoiceId ? (
+        <button
+          type="button"
+          className={itemClassName}
+          disabled={pending}
+          onClick={onSend}
+        >
+          Enviar
+        </button>
+      ) : null}
+      {!q.invoiceId ? (
+        <Link
+          href={`/quotes/${q.id}/edit`}
+          className={itemClassName}
+          onClick={onClose}
+        >
+          Modificar
+        </Link>
+      ) : null}
+      <button
+        type="button"
+        className={itemClassName}
+        disabled={pending}
+        onClick={() => {
+          onClose();
+          run(() => duplicateQuote(q.id));
+        }}
+      >
+        Duplicar
+      </button>
+      {!q.invoiceId ? (
+        <button
+          type="button"
+          className={`${itemClassName} text-danger hover:bg-danger/10`}
+          disabled={pending}
+          onClick={() => {
+            onClose();
+            if (confirm(`¿Eliminar el presupuesto ${q.fullNumber}?`)) {
+              run(() => deleteQuote(q.id));
+            }
+          }}
+        >
+          Eliminar
+        </button>
+      ) : null}
+      {!q.invoiceId ? (
+        <button
+          type="button"
+          className={itemClassName}
+          disabled={pending}
+          onClick={() => {
+            onClose();
+            run(() => convertQuoteToInvoice(q.id));
+          }}
+        >
+          Convertir a factura
+        </button>
+      ) : (
+        <Link
+          href={`/invoices/${q.invoiceId}`}
+          className={itemClassName}
+          onClick={onClose}
+        >
+          Ver factura
+        </Link>
+      )}
+      <div className="my-1 border-t border-line" />
+      {!q.invoiceId ? (
+        <>
+          <button
+            type="button"
+            className={itemClassName}
+            disabled={pending}
+            onClick={() => {
+              onClose();
+              run(() => setQuoteStatus(q.id, "ACEPTADO"));
+            }}
+          >
+            Aceptado
+          </button>
+          <button
+            type="button"
+            className={itemClassName}
+            disabled={pending}
+            onClick={() => {
+              onClose();
+              run(() => setQuoteStatus(q.id, "RECHAZADO"));
+            }}
+          >
+            Rechazado
+          </button>
+        </>
+      ) : null}
+      <a
+        href={`/api/quotes/${q.id}/pdf`}
+        target="_blank"
+        rel="noreferrer"
+        className={itemClassName}
+        onClick={onClose}
+      >
+        Imprimir
+      </a>
+      <a
+        href={`/api/quotes/${q.id}/pdf?download=1`}
+        className={itemClassName}
+        onClick={onClose}
+      >
+        Descargar
+      </a>
+    </>
+  );
+}
+
 export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
   const router = useRouter();
   const [visible, setVisible] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [colsOpen, setColsOpen] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
+    null
+  );
   const [sendId, setSendId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const colsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     setVisible(loadVisible());
+    setMounted(true);
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
   }, []);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocPointer(e: Event) {
       const t = e.target as Node;
       if (colsRef.current && !colsRef.current.contains(t)) setColsOpen(false);
-      if (menuRef.current && !menuRef.current.contains(t)) setMenuId(null);
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(t) &&
+        menuBtnRef.current &&
+        !menuBtnRef.current.contains(t)
+      ) {
+        setMenuId(null);
+        setMenuPos(null);
+      }
     }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("pointerdown", onDocPointer);
+    return () => document.removeEventListener("pointerdown", onDocPointer);
   }, []);
+
+  useEffect(() => {
+    if (!menuId) return;
+    function closeMenu() {
+      setMenuId(null);
+      setMenuPos(null);
+    }
+    // On mobile the sheet shouldn't close on every scroll inside itself;
+    // only close desktop floating menu on scroll.
+    if (isMobile) return;
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    return () => {
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+    };
+  }, [menuId, isMobile]);
+
+  useEffect(() => {
+    if (!menuId || !isMobile) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menuId, isMobile]);
 
   function toggleColumn(id: ColumnId) {
     const def = COLUMNS.find((c) => c.id === id);
@@ -191,6 +375,10 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
     [visible]
   );
 
+  const menuQuote = menuId
+    ? quotes.find((q) => q.id === menuId) ?? null
+    : null;
+
   function run(action: () => Promise<unknown>) {
     startTransition(() => {
       void action()
@@ -202,6 +390,42 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
     });
   }
 
+  function openRowMenu(qId: string, btn: HTMLButtonElement) {
+    if (menuId === qId) {
+      setMenuId(null);
+      setMenuPos(null);
+      menuBtnRef.current = null;
+      return;
+    }
+    menuBtnRef.current = btn;
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setMenuPos({ top: 0, left: 0 });
+      setMenuId(qId);
+      return;
+    }
+    const rect = btn.getBoundingClientRect();
+    const menuWidth = 192;
+    const estimatedHeight = 320;
+    const gap = 4;
+    const left = Math.min(
+      Math.max(8, rect.right - menuWidth),
+      window.innerWidth - menuWidth - 8
+    );
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top =
+      spaceBelow < estimatedHeight && rect.top > estimatedHeight
+        ? Math.max(8, rect.top - estimatedHeight - gap)
+        : rect.bottom + gap;
+    setMenuPos({ top, left });
+    setMenuId(qId);
+  }
+
+  function closeMenu() {
+    setMenuId(null);
+    setMenuPos(null);
+    menuBtnRef.current = null;
+  }
+
   return (
     <div className="card-panel overflow-visible">
       <SendDocumentModal
@@ -211,6 +435,63 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
         onClose={() => setSendId(null)}
         onSent={() => router.refresh()}
       />
+      {mounted &&
+      menuQuote &&
+      menuPos &&
+      createPortal(
+        isMobile ? (
+          <div className="fixed inset-0 z-[100] flex flex-col justify-end md:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 bg-ink/40"
+              aria-label="Cerrar"
+              onClick={closeMenu}
+            />
+            <div
+              ref={menuRef}
+              className="relative max-h-[75vh] overflow-y-auto rounded-t-2xl border border-line bg-bg-elevated pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-xl"
+              role="menu"
+            >
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-line" />
+              <p className="px-4 pb-2 font-mono text-xs text-ink-muted">
+                {menuQuote.fullNumber}
+                {menuQuote.isProforma ? " · Proforma" : ""}
+              </p>
+              <QuoteActionsMenu
+                q={menuQuote}
+                pending={pending}
+                onClose={closeMenu}
+                run={run}
+                onSend={() => {
+                  closeMenu();
+                  setSendId(menuQuote.id);
+                }}
+                itemClassName="block w-full px-4 py-3.5 text-left text-base hover:bg-accent-soft"
+              />
+            </div>
+          </div>
+        ) : (
+          <div
+            ref={menuRef}
+            className="fixed z-[100] w-48 rounded-md border border-line bg-bg-elevated py-1 text-left shadow-lg"
+            style={{ top: menuPos.top, left: menuPos.left }}
+            role="menu"
+          >
+            <QuoteActionsMenu
+              q={menuQuote}
+              pending={pending}
+              onClose={closeMenu}
+              run={run}
+              onSend={() => {
+                closeMenu();
+                setSendId(menuQuote.id);
+              }}
+              itemClassName="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
+            />
+          </div>
+        ),
+        document.body
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
@@ -225,8 +506,8 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                   {c.label}
                 </th>
               ))}
-              <th className="relative w-40 px-4 py-3 text-right font-medium">
-                Acciones
+              <th className="sticky right-0 z-10 w-16 bg-line/20 px-2 py-3 text-right font-medium sm:w-40 sm:px-4 sm:bg-transparent">
+                <span className="sr-only sm:not-sr-only">Acciones</span>
                 <div className="relative ml-2 inline-block" ref={colsRef}>
                   <button
                     type="button"
@@ -284,7 +565,7 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
               quotes.map((q) => (
                 <tr
                   key={q.id}
-                  className="cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  className="group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
                   onClick={() => router.push(`/quotes/${q.id}`)}
                 >
                   {activeCols.map((c) => (
@@ -302,157 +583,29 @@ export function QuotesTable({ quotes }: { quotes: QuoteListRow[] }) {
                     </td>
                   ))}
                   <td
-                    className="relative px-4 py-3 text-right"
+                    className="sticky right-0 z-10 bg-bg-elevated px-2 py-3 text-right group-hover:bg-accent-soft/40 sm:static sm:bg-transparent sm:px-4 sm:group-hover:bg-transparent"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="inline-flex items-center gap-1">
+                    <div className="inline-flex items-center justify-end gap-1">
                       {!q.invoiceId ? (
                         <button
                           type="button"
                           disabled={pending}
-                          className="btn-secondary px-2 py-1 text-xs"
+                          className="btn-secondary hidden px-2 py-1 text-xs sm:inline-flex"
                           onClick={() => setSendId(q.id)}
                         >
                           Enviar
                         </button>
                       ) : null}
-                      <div
-                        className="relative"
-                        ref={menuId === q.id ? menuRef : undefined}
+                      <button
+                        type="button"
+                        className="btn-ghost inline-flex h-10 w-10 items-center justify-center px-0 text-base leading-none sm:h-auto sm:w-auto sm:px-2 sm:py-1"
+                        aria-label="Más acciones"
+                        aria-expanded={menuId === q.id}
+                        onClick={(e) => openRowMenu(q.id, e.currentTarget)}
                       >
-                        <button
-                          type="button"
-                          className="btn-ghost px-2 py-1 text-base leading-none"
-                          aria-label="Más acciones"
-                          onClick={() =>
-                            setMenuId((id) => (id === q.id ? null : q.id))
-                          }
-                        >
-                          ···
-                        </button>
-                        {menuId === q.id ? (
-                          <div className="absolute right-0 z-30 mt-1 w-48 rounded-md border border-line bg-bg-elevated py-1 text-left shadow-lg">
-                            {!q.invoiceId ? (
-                              <button
-                                type="button"
-                                className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
-                                disabled={pending}
-                                onClick={() => {
-                                  setMenuId(null);
-                                  setSendId(q.id);
-                                }}
-                              >
-                                Enviar
-                              </button>
-                            ) : null}
-                            {!q.invoiceId ? (
-                              <Link
-                                href={`/quotes/${q.id}/edit`}
-                                className="block px-3 py-1.5 text-sm hover:bg-accent-soft"
-                                onClick={() => setMenuId(null)}
-                              >
-                                Modificar
-                              </Link>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
-                              disabled={pending}
-                              onClick={() => {
-                                setMenuId(null);
-                                run(() => duplicateQuote(q.id));
-                              }}
-                            >
-                              Duplicar
-                            </button>
-                            {!q.invoiceId ? (
-                              <button
-                                type="button"
-                                className="block w-full px-3 py-1.5 text-left text-sm text-danger hover:bg-danger/10"
-                                disabled={pending}
-                                onClick={() => {
-                                  setMenuId(null);
-                                  if (
-                                    confirm(
-                                      `¿Eliminar el presupuesto ${q.fullNumber}?`
-                                    )
-                                  ) {
-                                    run(() => deleteQuote(q.id));
-                                  }
-                                }}
-                              >
-                                Eliminar
-                              </button>
-                            ) : null}
-                            {!q.invoiceId ? (
-                              <button
-                                type="button"
-                                className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
-                                disabled={pending}
-                                onClick={() => {
-                                  setMenuId(null);
-                                  run(() => convertQuoteToInvoice(q.id));
-                                }}
-                              >
-                                Convertir a factura
-                              </button>
-                            ) : (
-                              <Link
-                                href={`/invoices/${q.invoiceId}`}
-                                className="block px-3 py-1.5 text-sm hover:bg-accent-soft"
-                                onClick={() => setMenuId(null)}
-                              >
-                                Ver factura
-                              </Link>
-                            )}
-                            <div className="my-1 border-t border-line" />
-                            {!q.invoiceId ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
-                                  disabled={pending}
-                                  onClick={() => {
-                                    setMenuId(null);
-                                    run(() => setQuoteStatus(q.id, "ACEPTADO"));
-                                  }}
-                                >
-                                  Aceptado
-                                </button>
-                                <button
-                                  type="button"
-                                  className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
-                                  disabled={pending}
-                                  onClick={() => {
-                                    setMenuId(null);
-                                    run(() =>
-                                      setQuoteStatus(q.id, "RECHAZADO")
-                                    );
-                                  }}
-                                >
-                                  Rechazado
-                                </button>
-                              </>
-                            ) : null}
-                            <a
-                              href={`/api/quotes/${q.id}/pdf`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block px-3 py-1.5 text-sm hover:bg-accent-soft"
-                              onClick={() => setMenuId(null)}
-                            >
-                              Imprimir
-                            </a>
-                            <a
-                              href={`/api/quotes/${q.id}/pdf?download=1`}
-                              className="block px-3 py-1.5 text-sm hover:bg-accent-soft"
-                              onClick={() => setMenuId(null)}
-                            >
-                              Descargar
-                            </a>
-                          </div>
-                        ) : null}
-                      </div>
+                        ···
+                      </button>
                     </div>
                   </td>
                 </tr>

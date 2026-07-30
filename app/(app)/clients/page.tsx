@@ -58,14 +58,18 @@ export default async function ClientsPage({
         <LiveSearch placeholder="Buscar por nombre, NIF o email…" />
       </Suspense>
 
-      <div className="card-panel overflow-hidden">
-        <table className="w-full text-left text-sm">
+      <div className="card-panel overflow-x-auto">
+        <table className="w-full min-w-[28rem] text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Nombre</th>
               <th className="px-4 py-3 font-medium">NIF/CIF</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Alta</th>
+              <th className="hidden px-4 py-3 font-medium sm:table-cell">
+                Email
+              </th>
+              <th className="hidden px-4 py-3 font-medium md:table-cell">
+                Alta
+              </th>
               <th className="px-4 py-3 font-medium text-right">Docs</th>
             </tr>
           </thead>
@@ -94,8 +98,10 @@ export default async function ClientsPage({
                     </Link>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{c.nif}</td>
-                  <td className="px-4 py-3 text-ink-muted">{c.email ?? "—"}</td>
-                  <td className="px-4 py-3 text-ink-muted">
+                  <td className="hidden px-4 py-3 text-ink-muted sm:table-cell">
+                    {c.email ?? "—"}
+                  </td>
+                  <td className="hidden px-4 py-3 text-ink-muted md:table-cell">
                     {formatDate(c.createdAt)}
                   </td>
                   <td className="px-4 py-3 text-right text-ink-muted">

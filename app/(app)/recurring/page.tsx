@@ -124,7 +124,7 @@ export default async function RecurringPage({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
           Log de ejecuciones cron
         </h2>
-        <div className="card-panel overflow-hidden">
+        <div className="card-panel overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-line bg-line/20 text-xs uppercase text-ink-muted">
               <tr>

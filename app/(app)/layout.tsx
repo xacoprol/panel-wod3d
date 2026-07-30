@@ -5,6 +5,21 @@ import { signOut } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+function SignOutForm({ className }: { className?: string }) {
+  return (
+    <form
+      action={async () => {
+        "use server";
+        await signOut({ redirectTo: "/login" });
+      }}
+    >
+      <button type="submit" className={className ?? "btn-ghost text-xs"}>
+        Cerrar sesión
+      </button>
+    </form>
+  );
+}
+
 export default async function AppLayout({
   children,
 }: {
@@ -21,22 +36,18 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar companyName={companyName} />
+    <div className="flex min-h-screen flex-col lg:flex-row">
+      <Sidebar
+        companyName={companyName}
+        signOutSlot={<SignOutForm className="btn-ghost px-2 py-1 text-xs" />}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-end border-b border-line px-6 py-3">
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login" });
-            }}
-          >
-            <button type="submit" className="btn-ghost text-xs">
-              Cerrar sesión
-            </button>
-          </form>
+        <header className="hidden items-center justify-end border-b border-line px-6 py-3 lg:flex">
+          <SignOutForm />
         </header>
-        <main className="flex-1 px-6 py-8 lg:px-10">{children}</main>
+        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+          {children}
+        </main>
       </div>
     </div>
   );

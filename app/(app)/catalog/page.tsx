@@ -55,16 +55,20 @@ export default async function CatalogPage({
         <LiveSearch placeholder="Buscar por nombre o descripción…" />
       </Suspense>
 
-      <div className="card-panel overflow-hidden">
-        <table className="w-full text-left text-sm">
+      <div className="card-panel overflow-x-auto">
+        <table className="w-full min-w-[40rem] text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Descripción</th>
+              <th className="hidden px-4 py-3 font-medium sm:table-cell">
+                Descripción
+              </th>
               <th className="px-4 py-3 font-medium text-right">Precio</th>
               <th className="px-4 py-3 font-medium text-right">IVA</th>
               <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium text-right">Acciones</th>
+              <th className="sticky right-0 z-10 bg-line/20 px-2 py-3 text-right font-medium sm:static sm:bg-transparent sm:px-4">
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -79,9 +83,14 @@ export default async function CatalogPage({
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.id} className="border-b border-line/50">
-                  <td className="px-4 py-3 font-medium">{item.name}</td>
-                  <td className="max-w-xs truncate px-4 py-3 text-ink-muted">
+                <tr key={item.id} className="group border-b border-line/50">
+                  <td className="px-4 py-3 font-medium">
+                    {item.name}
+                    <p className="mt-0.5 line-clamp-2 text-xs font-normal text-ink-muted sm:hidden">
+                      {item.description}
+                    </p>
+                  </td>
+                  <td className="hidden max-w-xs truncate px-4 py-3 text-ink-muted sm:table-cell">
                     {item.description}
                   </td>
                   <td className="px-4 py-3 text-right font-mono">
@@ -99,8 +108,8 @@ export default async function CatalogPage({
                       {item.active ? "Activo" : "Inactivo"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1">
+                  <td className="sticky right-0 z-10 bg-bg-elevated px-2 py-3 group-hover:bg-accent-soft/20 sm:static sm:bg-transparent sm:px-4">
+                    <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
                       <Link
                         href={`/catalog/${item.id}/edit`}
                         className="btn-ghost px-2 py-1 text-xs"
@@ -112,7 +121,7 @@ export default async function CatalogPage({
                           type="submit"
                           className="btn-ghost px-2 py-1 text-xs"
                         >
-                          {item.active ? "Desactivar" : "Activar"}
+                          {item.active ? "Off" : "On"}
                         </button>
                       </form>
                       <form action={deleteCatalogItem.bind(null, item.id)}>

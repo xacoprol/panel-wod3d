@@ -60,7 +60,7 @@ export default async function RecurringDetailPage({
         </div>
       </div>
 
-      <div className="card-panel overflow-hidden">
+      <div className="card-panel overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase text-ink-muted">
             <tr>
@@ -85,7 +85,7 @@ export default async function RecurringDetailPage({
         </table>
       </div>
 
-      <section className="card-panel overflow-hidden">
+      <section className="card-panel overflow-x-auto">
         <div className="border-b border-line px-4 py-3 text-sm font-semibold">
           Historial de facturas generadas
         </div>

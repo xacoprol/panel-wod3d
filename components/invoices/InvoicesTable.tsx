@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/calculations";
@@ -173,20 +180,66 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
   const [visible, setVisible] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [colsOpen, setColsOpen] = useState(false);
   const [sendId, setSendId] = useState<string | null>(null);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
+    null
+  );
+  const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const colsRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     setVisible(loadVisible());
+    setMounted(true);
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
   }, []);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocPointer(e: Event) {
       const t = e.target as Node;
       if (colsRef.current && !colsRef.current.contains(t)) setColsOpen(false);
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(t) &&
+        menuBtnRef.current &&
+        !menuBtnRef.current.contains(t)
+      ) {
+        setMenuId(null);
+        setMenuPos(null);
+      }
     }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("pointerdown", onDocPointer);
+    return () => document.removeEventListener("pointerdown", onDocPointer);
   }, []);
+
+  useEffect(() => {
+    if (!menuId || isMobile) return;
+    function close() {
+      setMenuId(null);
+      setMenuPos(null);
+    }
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [menuId, isMobile]);
+
+  useEffect(() => {
+    if (!menuId || !isMobile) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menuId, isMobile]);
 
   function toggleColumn(id: ColumnId) {
     const def = COLUMNS.find((c) => c.id === id);
@@ -205,6 +258,94 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
     [visible]
   );
 
+  const menuInv = menuId
+    ? invoices.find((i) => i.id === menuId) ?? null
+    : null;
+
+  function closeMenu() {
+    setMenuId(null);
+    setMenuPos(null);
+    menuBtnRef.current = null;
+  }
+
+  function openRowMenu(id: string, btn: HTMLButtonElement) {
+    if (menuId === id) {
+      closeMenu();
+      return;
+    }
+    menuBtnRef.current = btn;
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setMenuPos({ top: 0, left: 0 });
+      setMenuId(id);
+      return;
+    }
+    const rect = btn.getBoundingClientRect();
+    const menuWidth = 176;
+    const left = Math.min(
+      Math.max(8, rect.right - menuWidth),
+      window.innerWidth - menuWidth - 8
+    );
+    setMenuPos({ top: rect.bottom + 4, left });
+    setMenuId(id);
+  }
+
+  function MenuItems({
+    inv,
+    itemClass,
+  }: {
+    inv: InvoiceListRow;
+    itemClass: string;
+  }) {
+    return (
+      <>
+        {inv.status !== "ANULADA" ? (
+          <button
+            type="button"
+            className={itemClass}
+            onClick={() => {
+              closeMenu();
+              setSendId(inv.id);
+            }}
+          >
+            Enviar
+          </button>
+        ) : null}
+        <Link
+          href={`/invoices/${inv.id}`}
+          className={itemClass}
+          onClick={closeMenu}
+        >
+          Ver
+        </Link>
+        {inv.status !== "ANULADA" ? (
+          <Link
+            href={`/invoices/${inv.id}/edit`}
+            className={itemClass}
+            onClick={closeMenu}
+          >
+            Editar
+          </Link>
+        ) : null}
+        <a
+          href={`/api/invoices/${inv.id}/pdf`}
+          target="_blank"
+          rel="noreferrer"
+          className={itemClass}
+          onClick={closeMenu}
+        >
+          PDF
+        </a>
+        <a
+          href={`/api/invoices/${inv.id}/pdf?download=1`}
+          className={itemClass}
+          onClick={closeMenu}
+        >
+          Descargar
+        </a>
+      </>
+    );
+  }
+
   return (
     <div className="card-panel overflow-visible">
       <SendDocumentModal
@@ -214,6 +355,48 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
         onClose={() => setSendId(null)}
         onSent={() => router.refresh()}
       />
+      {mounted &&
+        menuInv &&
+        menuPos &&
+        createPortal(
+          isMobile ? (
+            <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+              <button
+                type="button"
+                className="absolute inset-0 bg-ink/40"
+                aria-label="Cerrar"
+                onClick={closeMenu}
+              />
+              <div
+                ref={menuRef}
+                className="relative max-h-[70vh] overflow-y-auto rounded-t-2xl border border-line bg-bg-elevated pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-xl"
+                role="menu"
+              >
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-line" />
+                <p className="px-4 pb-2 font-mono text-xs text-ink-muted">
+                  {menuInv.fullNumber}
+                </p>
+                <MenuItems
+                  inv={menuInv}
+                  itemClass="block w-full px-4 py-3.5 text-left text-base hover:bg-accent-soft"
+                />
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={menuRef}
+              className="fixed z-[100] w-44 rounded-md border border-line bg-bg-elevated py-1 text-left shadow-lg"
+              style={{ top: menuPos.top, left: menuPos.left }}
+              role="menu"
+            >
+              <MenuItems
+                inv={menuInv}
+                itemClass="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent-soft"
+              />
+            </div>
+          ),
+          document.body
+        )}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
@@ -228,9 +411,9 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
                   {c.label}
                 </th>
               ))}
-              <th className="relative w-44 px-4 py-3 text-right font-medium">
-                Acciones
-                <div className="relative ml-2 inline-block" ref={colsRef}>
+              <th className="sticky right-0 z-10 w-16 bg-line/20 px-2 py-3 text-right font-medium sm:w-44 sm:px-4 sm:bg-transparent">
+                <span className="sr-only sm:not-sr-only">Acciones</span>
+                <div className="relative ml-2 hidden sm:inline-block" ref={colsRef}>
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 rounded border border-line bg-bg-elevated px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-ink-muted hover:bg-line/40"
@@ -287,7 +470,7 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
               invoices.map((inv) => (
                 <tr
                   key={inv.id}
-                  className="cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  className="group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
                   onClick={() => router.push(`/invoices/${inv.id}`)}
                 >
                   {activeCols.map((c) => (
@@ -308,33 +491,28 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceListRow[] }) {
                     </td>
                   ))}
                   <td
-                    className="px-4 py-3 text-right"
+                    className="sticky right-0 z-10 bg-bg-elevated px-2 py-3 text-right group-hover:bg-accent-soft/40 sm:static sm:bg-transparent sm:px-4 sm:group-hover:bg-transparent"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="inline-flex items-center gap-1">
+                    <div className="inline-flex items-center justify-end gap-1">
                       {inv.status !== "ANULADA" ? (
                         <button
                           type="button"
-                          className="btn-secondary px-2 py-1 text-xs"
+                          className="btn-secondary hidden px-2 py-1 text-xs sm:inline-flex"
                           onClick={() => setSendId(inv.id)}
                         >
                           Enviar
                         </button>
                       ) : null}
-                      <Link
-                        href={`/invoices/${inv.id}`}
-                        className="btn-ghost px-2 py-1 text-xs"
+                      <button
+                        type="button"
+                        className="btn-ghost inline-flex h-10 w-10 items-center justify-center px-0 text-base leading-none sm:h-auto sm:w-auto sm:px-2 sm:py-1"
+                        aria-label="Más acciones"
+                        aria-expanded={menuId === inv.id}
+                        onClick={(e) => openRowMenu(inv.id, e.currentTarget)}
                       >
-                        Ver
-                      </Link>
-                      <a
-                        href={`/api/invoices/${inv.id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn-ghost px-2 py-1 text-xs"
-                      >
-                        PDF
-                      </a>
+                        ···
+                      </button>
                     </div>
                   </td>
                 </tr>

@@ -150,7 +150,8 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
                   {c.label}
                 </th>
               ))}
-              <th className="relative w-24 px-4 py-3 text-right font-medium">
+              <th className="sticky right-0 z-10 w-14 bg-line/20 px-2 py-3 text-right font-medium sm:static sm:w-24 sm:bg-transparent sm:px-4">
+                <span className="sr-only sm:not-sr-only"> </span>
                 <div className="relative inline-block" ref={colsRef}>
                   <button
                     type="button"
@@ -208,7 +209,7 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
               rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
+                  className="group cursor-pointer border-b border-line/60 hover:bg-accent-soft/40"
                   onClick={() => router.push(`/recurring/${row.id}`)}
                 >
                   {activeCols.map((c) => (
@@ -228,12 +229,12 @@ export function RecurringTable({ rows }: { rows: RecurringListRow[] }) {
                     </td>
                   ))}
                   <td
-                    className="px-4 py-3 text-right"
+                    className="sticky right-0 z-10 bg-bg-elevated px-2 py-3 text-right group-hover:bg-accent-soft/40 sm:static sm:bg-transparent sm:px-4 sm:group-hover:bg-transparent"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Link
                       href={`/recurring/${row.id}`}
-                      className="btn-ghost px-2 py-1 text-xs"
+                      className="btn-ghost inline-flex h-10 items-center px-2 text-xs sm:h-auto sm:py-1"
                     >
                       Ver
                     </Link>

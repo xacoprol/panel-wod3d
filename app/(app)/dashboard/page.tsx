@@ -146,7 +146,7 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      <section className="card-panel overflow-hidden">
+      <section className="card-panel overflow-x-auto">
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <h2 className="text-sm font-semibold">Facturas pendientes / vencidas</h2>
           <Link href="/invoices?status=PENDIENTE" className="text-xs text-accent hover:underline">
