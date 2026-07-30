@@ -94,10 +94,72 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+export async function checkMarketplaceIncomeDuplicates(
+  keys: { channel: string; externalKey: string }[]
+): Promise<{
+  duplicates: {
+    channel: string;
+    externalKey: string;
+    id: string;
+    externalRef: string | null;
+    issueDate: string;
+  }[];
+}> {
+  await requireAuth();
+  if (!keys.length) return { duplicates: [] };
+
+  const byChannel = new Map<string, string[]>();
+  for (const k of keys) {
+    const channel = String(k.channel || "").toUpperCase();
+    const externalKey = String(k.externalKey || "").trim();
+    if (!channel || !externalKey) continue;
+    const list = byChannel.get(channel) ?? [];
+    list.push(externalKey);
+    byChannel.set(channel, list);
+  }
+
+  const duplicates: {
+    channel: string;
+    externalKey: string;
+    id: string;
+    externalRef: string | null;
+    issueDate: string;
+  }[] = [];
+
+  for (const [channel, externalKeys] of byChannel) {
+    const unique = [...new Set(externalKeys)];
+    // Neon HTTP: chunks to avoid huge IN clauses
+    for (let i = 0; i < unique.length; i += 200) {
+      const chunk = unique.slice(i, i + 200);
+      const found = await prisma.marketplaceIncome.findMany({
+        where: { channel, externalKey: { in: chunk } },
+        select: {
+          id: true,
+          channel: true,
+          externalKey: true,
+          externalRef: true,
+          issueDate: true,
+        },
+      });
+      for (const f of found) {
+        duplicates.push({
+          channel: f.channel,
+          externalKey: f.externalKey,
+          id: f.id,
+          externalRef: f.externalRef,
+          issueDate: f.issueDate.toISOString().slice(0, 10),
+        });
+      }
+    }
+  }
+
+  return { duplicates };
+}
+
 export async function importMarketplaceIncomeRows(
   rows: MarketplaceIncomeInput[]
 ): Promise<
-  | { ok: true; imported: number; skipped: number }
+  | { ok: true; imported: number; skipped: number; skippedRefs: string[] }
   | { ok: false; error: string }
 > {
   await requireAuth();
@@ -108,6 +170,7 @@ export async function importMarketplaceIncomeRows(
 
   let imported = 0;
   let skipped = 0;
+  const skippedRefs: string[] = [];
 
   try {
     for (const row of rows) {
@@ -115,6 +178,7 @@ export async function importMarketplaceIncomeRows(
       const externalKey = String(row.externalKey || "").trim();
       if (!externalKey) {
         skipped++;
+        skippedRefs.push(row.externalRef || "(sin clave)");
         continue;
       }
 
@@ -122,10 +186,13 @@ export async function importMarketplaceIncomeRows(
         where: {
           channel_externalKey: { channel, externalKey },
         },
-        select: { id: true },
+        select: { id: true, externalRef: true },
       });
       if (existing) {
         skipped++;
+        skippedRefs.push(
+          existing.externalRef || row.externalRef || externalKey
+        );
         continue;
       }
 
@@ -164,7 +231,15 @@ export async function importMarketplaceIncomeRows(
     revalidatePath("/fiscal/income");
     revalidatePath("/fiscal/303");
     revalidatePath("/fiscal/130");
-    return { ok: true, imported, skipped };
+
+    if (imported === 0 && skipped > 0) {
+      return {
+        ok: false,
+        error: `Todas las líneas ya estaban registradas (${skipped} duplicadas). No se ha importado nada nuevo.`,
+      };
+    }
+
+    return { ok: true, imported, skipped, skippedRefs: skippedRefs.slice(0, 8) };
   } catch (e) {
     return {
       ok: false,
