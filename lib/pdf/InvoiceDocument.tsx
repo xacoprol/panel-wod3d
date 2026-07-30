@@ -117,9 +117,15 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
   },
 
-  docBar: {
+  docBarRow: {
     flexDirection: "row",
     marginBottom: 14,
+    gap: 10,
+  },
+  docBarSpacer: { width: 128 },
+  docBar: {
+    flex: 1,
+    flexDirection: "row",
     borderWidth: 1,
     borderColor: LINE,
     borderRadius: R,
@@ -518,9 +524,12 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
           </View>
         </View>
 
-        <View style={styles.docBar}>
-          <Text style={styles.docLabel}>{title.toUpperCase()}</Text>
-          <Text style={styles.docNumber}>{number}</Text>
+        <View style={styles.docBarRow}>
+          <View style={styles.docBarSpacer} />
+          <View style={styles.docBar}>
+            <Text style={styles.docLabel}>{title.toUpperCase()}</Text>
+            <Text style={styles.docNumber}>{number}</Text>
+          </View>
         </View>
 
         <View style={styles.metaRow}>
