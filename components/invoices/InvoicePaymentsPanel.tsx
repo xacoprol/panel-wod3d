@@ -3,6 +3,7 @@ import {
   addInvoicePayment,
   deleteInvoicePayment,
 } from "@/app/(app)/invoices/actions";
+import { DateInput } from "@/components/ui/DateInput";
 
 type Payment = {
   id: string;
@@ -124,12 +125,11 @@ export function InvoicePaymentsPanel({
             <label className="label" htmlFor="paidAt">
               Fecha
             </label>
-            <input
+            <DateInput
               id="paidAt"
               name="paidAt"
-              type="date"
               defaultValue={today}
-              className="input"
+              required
             />
           </div>
           <div>
