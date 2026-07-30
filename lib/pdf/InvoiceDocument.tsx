@@ -56,45 +56,51 @@ export type InvoicePdfProps = {
   earlyPaymentDiscountAmount?: number;
 };
 
-/* Paleta orgánica: grises cálidos y suaves */
-const INK = "#3f3c38";
-const MUTED = "#948f86";
-const SOFT = "#f5f2ed";
-const SOFT_MID = "#ebe6de";
-const LINE = "#ddd6cc";
-const ACCENT_DEEP = "#a8a29a";
-const BRAND = "#9b8fc4";
-const R = 12; // radio general más orgánico
+/**
+ * Paleta alineada con la UX del panel (violeta + neutros fríos).
+ * En @react-pdf el overflow:hidden NO recorta hijos: el radio debe
+ * aplicarse también en las esquinas de los hijos con fondo.
+ */
+const INK = "#1A1528";
+const MUTED = "#6B6578";
+const BG = "#F3F1F8";
+const SURFACE = "#FFFFFF";
+const SOFT = "#EFE8FF";
+const SOFT_MID = "#E8E4F2";
+const LINE = "#E2DEEA";
+const ACCENT = "#7B2CFE";
+const ACCENT_HOVER = "#6518E0";
+const R = 6; // radio realista en PDF (12 se ve mal / se “corta”)
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 38,
+    paddingTop: 36,
     paddingBottom: 52,
     paddingHorizontal: 40,
     fontSize: 9,
     fontFamily: "Helvetica",
     color: INK,
-    backgroundColor: "#fbfaf8",
+    backgroundColor: BG,
   },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   logoWrap: { width: 150 },
   logoImg: { width: 130, height: 48, objectFit: "contain" },
   brandText: {
-    fontSize: 26,
+    fontSize: 24,
     fontFamily: "Helvetica-Bold",
-    color: BRAND,
-    letterSpacing: 0.5,
+    color: ACCENT,
+    letterSpacing: 0.3,
   },
   brandSub: {
     fontSize: 7,
     color: MUTED,
     marginTop: 3,
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   issuerBlock: { maxWidth: 250, alignItems: "flex-end" },
   issuerName: {
@@ -114,21 +120,22 @@ const styles = StyleSheet.create({
   docBar: {
     flexDirection: "row",
     marginBottom: 14,
-    borderRadius: R,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: LINE,
+    borderRadius: R,
   },
   docLabel: {
-    backgroundColor: ACCENT_DEEP,
-    color: "#faf8f5",
+    backgroundColor: ACCENT,
+    color: SURFACE,
     fontFamily: "Helvetica-Bold",
     fontSize: 9,
-    letterSpacing: 0.6,
-    paddingHorizontal: 16,
+    letterSpacing: 0.5,
+    paddingHorizontal: 14,
     paddingVertical: 7,
     minWidth: 118,
     textAlign: "center",
+    borderTopLeftRadius: R,
+    borderBottomLeftRadius: R,
   },
   docNumber: {
     flex: 1,
@@ -138,6 +145,8 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
     color: INK,
+    borderTopRightRadius: R,
+    borderBottomRightRadius: R,
   },
 
   metaRow: {
@@ -151,8 +160,7 @@ const styles = StyleSheet.create({
     borderColor: LINE,
     borderRadius: R,
     marginBottom: 8,
-    overflow: "hidden",
-    backgroundColor: "#ffffff",
+    backgroundColor: SURFACE,
   },
   fieldLabel: {
     backgroundColor: SOFT,
@@ -162,23 +170,31 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     fontFamily: "Helvetica-Bold",
     letterSpacing: 0.3,
+    borderTopLeftRadius: R,
+    borderTopRightRadius: R,
   },
   fieldValue: {
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: 9,
     color: INK,
+    borderBottomLeftRadius: R,
+    borderBottomRightRadius: R,
   },
   clientBox: {
     flex: 1,
     borderWidth: 1,
     borderColor: LINE,
     borderRadius: R,
-    overflow: "hidden",
     minHeight: 76,
-    backgroundColor: "#ffffff",
+    backgroundColor: SURFACE,
   },
-  clientBody: { paddingHorizontal: 12, paddingVertical: 9 },
+  clientBody: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderBottomLeftRadius: R,
+    borderBottomRightRadius: R,
+  },
   clientName: {
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
@@ -189,11 +205,10 @@ const styles = StyleSheet.create({
 
   table: {
     marginBottom: 16,
-    borderRadius: R,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: LINE,
-    backgroundColor: "#ffffff",
+    borderRadius: R,
+    backgroundColor: SURFACE,
   },
   tableHeader: {
     flexDirection: "row",
@@ -202,6 +217,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: LINE,
+    borderTopLeftRadius: R,
+    borderTopRightRadius: R,
   },
   tableRow: {
     flexDirection: "row",
@@ -217,6 +234,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minHeight: 24,
     borderBottomWidth: 0,
+    borderBottomLeftRadius: R,
+    borderBottomRightRadius: R,
   },
   th: {
     fontFamily: "Helvetica-Bold",
@@ -243,9 +262,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: LINE,
     borderRadius: R,
-    overflow: "hidden",
     marginBottom: 6,
-    backgroundColor: "#ffffff",
+    backgroundColor: SURFACE,
   },
   totalLabel: {
     flex: 1,
@@ -255,6 +273,8 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
     color: MUTED,
+    borderTopLeftRadius: R,
+    borderBottomLeftRadius: R,
   },
   totalValue: {
     width: 78,
@@ -263,25 +283,31 @@ const styles = StyleSheet.create({
     fontSize: 9,
     textAlign: "right",
     color: INK,
+    borderTopRightRadius: R,
+    borderBottomRightRadius: R,
   },
   totalFinalLabel: {
     flex: 1,
-    backgroundColor: ACCENT_DEEP,
-    color: "#faf8f5",
+    backgroundColor: ACCENT,
+    color: SURFACE,
     paddingHorizontal: 8,
     paddingVertical: 7,
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
+    borderTopLeftRadius: R,
+    borderBottomLeftRadius: R,
   },
   totalFinalValue: {
     width: 78,
-    backgroundColor: SOFT_MID,
+    backgroundColor: ACCENT_HOVER,
     paddingHorizontal: 8,
     paddingVertical: 7,
     fontSize: 10,
     fontFamily: "Helvetica-Bold",
     textAlign: "right",
-    color: INK,
+    color: SURFACE,
+    borderTopRightRadius: R,
+    borderBottomRightRadius: R,
   },
 
   dualField: {
@@ -289,9 +315,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: LINE,
     borderRadius: R,
-    overflow: "hidden",
     marginBottom: 6,
-    backgroundColor: "#ffffff",
+    backgroundColor: SURFACE,
   },
   dualLabel: {
     width: 98,
@@ -301,6 +326,8 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontFamily: "Helvetica-Bold",
     color: MUTED,
+    borderTopLeftRadius: R,
+    borderBottomLeftRadius: R,
   },
   dualPct: {
     width: 48,
@@ -321,16 +348,17 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: LINE,
     color: INK,
+    borderTopRightRadius: R,
+    borderBottomRightRadius: R,
   },
 
   obsBox: {
     borderWidth: 1,
     borderColor: LINE,
     borderRadius: R,
-    overflow: "hidden",
     marginTop: 2,
     minHeight: 52,
-    backgroundColor: "#ffffff",
+    backgroundColor: SURFACE,
   },
   obsLabel: {
     backgroundColor: SOFT,
@@ -340,6 +368,8 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: MUTED,
     letterSpacing: 0.3,
+    borderTopLeftRadius: R,
+    borderTopRightRadius: R,
   },
   obsBody: {
     paddingHorizontal: 8,
@@ -347,6 +377,8 @@ const styles = StyleSheet.create({
     fontSize: 8,
     lineHeight: 1.4,
     color: INK,
+    borderBottomLeftRadius: R,
+    borderBottomRightRadius: R,
   },
 
   footer: {
@@ -472,7 +504,7 @@ export function InvoicePdfDocument(props: InvoicePdfProps) {
             ) : (
               <View>
                 <Text style={styles.brandText}>{brandName}</Text>
-                <Text style={styles.brandSub}>diseño · impresión 3D</Text>
+                <Text style={styles.brandSub}>facturación</Text>
               </View>
             )}
           </View>

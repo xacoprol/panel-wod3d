@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { calculateDocument } from "@/lib/calculations";
 import { parsePage, paginationMeta } from "@/lib/pagination";
@@ -7,6 +8,8 @@ import {
   RecurringTable,
   type RecurringListRow,
 } from "@/components/recurring/RecurringTable";
+import { LiveSearch } from "@/components/ui/LiveSearch";
+import type { Prisma } from "@prisma/client";
 
 function templateTotal(t: {
   irpfRate: number;
@@ -39,16 +42,27 @@ function templateTotal(t: {
 export default async function RecurringPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const sp = await searchParams;
   const page = parsePage(sp.page);
+  const q = sp.q?.trim();
 
-  const total = await prisma.recurringInvoiceTemplate.count();
+  const where: Prisma.RecurringInvoiceTemplateWhereInput = q
+    ? {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { client: { name: { contains: q, mode: "insensitive" } } },
+        ],
+      }
+    : {};
+
+  const total = await prisma.recurringInvoiceTemplate.count({ where });
   const meta = paginationMeta(total, page);
 
   const [templates, logs] = await Promise.all([
     prisma.recurringInvoiceTemplate.findMany({
+      where,
       include: {
         client: true,
         lines: true,
@@ -91,11 +105,15 @@ export default async function RecurringPage({
         </Link>
       </div>
 
+      <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+        <LiveSearch placeholder="Buscar por nombre o cliente…" />
+      </Suspense>
+
       <RecurringTable rows={rows} />
 
       <Pagination
         basePath="/recurring"
-        params={{}}
+        params={{ q: sp.q }}
         page={meta.page}
         totalPages={meta.totalPages}
         total={meta.total}

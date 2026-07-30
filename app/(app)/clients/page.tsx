@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/calculations";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
+import { LiveSearch } from "@/components/ui/LiveSearch";
 
 export default async function ClientsPage({
   searchParams,
@@ -16,9 +18,9 @@ export default async function ClientsPage({
   const where = query
     ? {
         OR: [
-          { name: { contains: query } },
-          { nif: { contains: query } },
-          { email: { contains: query } },
+          { name: { contains: query, mode: "insensitive" as const } },
+          { nif: { contains: query, mode: "insensitive" as const } },
+          { email: { contains: query, mode: "insensitive" as const } },
         ],
       }
     : undefined;
@@ -52,17 +54,9 @@ export default async function ClientsPage({
         </Link>
       </div>
 
-      <form className="flex gap-2">
-        <input
-          name="q"
-          defaultValue={query ?? ""}
-          placeholder="Buscar por nombre, NIF o email…"
-          className="input max-w-md"
-        />
-        <button type="submit" className="btn-secondary">
-          Buscar
-        </button>
-      </form>
+      <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+        <LiveSearch placeholder="Buscar por nombre, NIF o email…" />
+      </Suspense>
 
       <div className="card-panel overflow-hidden">
         <table className="w-full text-left text-sm">

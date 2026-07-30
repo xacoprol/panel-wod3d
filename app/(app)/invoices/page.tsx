@@ -1,12 +1,18 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
-import { DateInput } from "@/components/ui/DateInput";
 import {
   InvoicesTable,
   type InvoiceListRow,
 } from "@/components/invoices/InvoicesTable";
+import {
+  LiveDate,
+  LiveSearch,
+  LiveSelect,
+} from "@/components/ui/LiveSearch";
+import type { Prisma } from "@prisma/client";
 
 function primaryVatRate(rates: number[]): number | null {
   if (!rates.length) return null;
@@ -37,12 +43,15 @@ export default async function InvoicesPage({
     status?: string;
     from?: string;
     to?: string;
+    q?: string;
     page?: string;
   }>;
 }) {
   const sp = await searchParams;
   const page = parsePage(sp.page);
-  const where = {
+  const q = sp.q?.trim();
+
+  const where: Prisma.InvoiceWhereInput = {
     ...(sp.status ? { status: sp.status } : {}),
     ...(sp.from || sp.to
       ? {
@@ -50,6 +59,15 @@ export default async function InvoicesPage({
             ...(sp.from ? { gte: new Date(sp.from) } : {}),
             ...(sp.to ? { lte: new Date(sp.to) } : {}),
           },
+        }
+      : {}),
+    ...(q
+      ? {
+          OR: [
+            { fullNumber: { contains: q, mode: "insensitive" } },
+            { client: { name: { contains: q, mode: "insensitive" } } },
+            { client: { nif: { contains: q, mode: "insensitive" } } },
+          ],
         }
       : {}),
   };
@@ -99,7 +117,7 @@ export default async function InvoicesPage({
     };
   });
 
-  const params = { status: sp.status, from: sp.from, to: sp.to };
+  const params = { status: sp.status, from: sp.from, to: sp.to, q: sp.q };
 
   return (
     <div className="space-y-6">
@@ -115,30 +133,28 @@ export default async function InvoicesPage({
         </Link>
       </div>
 
-      <form className="flex flex-wrap items-end gap-2">
-        <div>
-          <label className="label">Estado</label>
-          <select name="status" defaultValue={sp.status ?? ""} className="input w-auto">
-            <option value="">Todos</option>
-            {["PENDIENTE", "PAGADA", "VENCIDA", "ANULADA"].map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label">Desde</label>
-          <DateInput name="from" defaultValue={sp.from ?? ""} className="input w-auto" />
-        </div>
-        <div>
-          <label className="label">Hasta</label>
-          <DateInput name="to" defaultValue={sp.to ?? ""} className="input w-auto" />
-        </div>
-        <button type="submit" className="btn-secondary">
-          Filtrar
-        </button>
-      </form>
+      <div className="flex flex-wrap items-end gap-2">
+        <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+          <LiveSearch placeholder="Buscar por nº, cliente o NIF…" />
+        </Suspense>
+        <Suspense fallback={null}>
+          <LiveSelect
+            param="status"
+            label="Estado"
+            allLabel="Todos"
+            options={["PENDIENTE", "PAGADA", "VENCIDA", "ANULADA"].map((s) => ({
+              value: s,
+              label: s,
+            }))}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <LiveDate param="from" label="Desde" />
+        </Suspense>
+        <Suspense fallback={null}>
+          <LiveDate param="to" label="Hasta" />
+        </Suspense>
+      </div>
 
       <InvoicesTable invoices={rows} />
 

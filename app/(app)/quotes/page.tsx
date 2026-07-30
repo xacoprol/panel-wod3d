@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
 import { QuotesTable, type QuoteListRow } from "@/components/quotes/QuotesTable";
+import { LiveSearch, LiveSelect } from "@/components/ui/LiveSearch";
+import type { Prisma } from "@prisma/client";
 
 function primaryVatRate(rates: number[]): number | null {
   if (!rates.length) return null;
@@ -22,13 +25,29 @@ function primaryVatRate(rates: number[]): number | null {
 export default async function QuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; clientId?: string; page?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    clientId?: string;
+    q?: string;
+    page?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const page = parsePage(sp.page);
-  const where = {
+  const q = sp.q?.trim();
+
+  const where: Prisma.QuoteWhereInput = {
     ...(sp.status ? { status: sp.status } : {}),
     ...(sp.clientId ? { clientId: sp.clientId } : {}),
+    ...(q
+      ? {
+          OR: [
+            { fullNumber: { contains: q, mode: "insensitive" } },
+            { client: { name: { contains: q, mode: "insensitive" } } },
+            { client: { nif: { contains: q, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
   };
 
   const total = await prisma.quote.count({ where });
@@ -46,26 +65,26 @@ export default async function QuotesPage({
     take: meta.take,
   });
 
-  const rows: QuoteListRow[] = quotes.map((q) => ({
-    id: q.id,
-    fullNumber: q.fullNumber,
-    issueDate: q.issueDate.toISOString(),
-    validUntil: q.validUntil?.toISOString() ?? null,
-    status: q.status,
-    notes: q.notes,
-    discountPct: q.discountPct,
-    subtotal: Number(q.subtotal),
-    vatAmount: Number(q.vatAmount),
-    total: Number(q.total),
-    createdAt: q.createdAt.toISOString(),
-    updatedAt: q.updatedAt.toISOString(),
-    primaryVatRate: primaryVatRate(q.lines.map((l) => l.vatRate)),
-    clientName: q.client.name,
-    clientNif: q.client.nif,
-    invoiceId: q.invoice?.id ?? null,
+  const rows: QuoteListRow[] = quotes.map((qrow) => ({
+    id: qrow.id,
+    fullNumber: qrow.fullNumber,
+    issueDate: qrow.issueDate.toISOString(),
+    validUntil: qrow.validUntil?.toISOString() ?? null,
+    status: qrow.status,
+    notes: qrow.notes,
+    discountPct: qrow.discountPct,
+    subtotal: Number(qrow.subtotal),
+    vatAmount: Number(qrow.vatAmount),
+    total: Number(qrow.total),
+    createdAt: qrow.createdAt.toISOString(),
+    updatedAt: qrow.updatedAt.toISOString(),
+    primaryVatRate: primaryVatRate(qrow.lines.map((l) => l.vatRate)),
+    clientName: qrow.client.name,
+    clientNif: qrow.client.nif,
+    invoiceId: qrow.invoice?.id ?? null,
   }));
 
-  const params = { status: sp.status, clientId: sp.clientId };
+  const params = { status: sp.status, clientId: sp.clientId, q: sp.q };
 
   return (
     <div className="space-y-6">
@@ -81,21 +100,20 @@ export default async function QuotesPage({
         </Link>
       </div>
 
-      <form className="flex flex-wrap gap-2">
-        <select name="status" defaultValue={sp.status ?? ""} className="input w-auto">
-          <option value="">Todos los estados</option>
-          {["BORRADOR", "ENVIADO", "ACEPTADO", "RECHAZADO", "EXPIRADO"].map(
-            (s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            )
-          )}
-        </select>
-        <button type="submit" className="btn-secondary">
-          Filtrar
-        </button>
-      </form>
+      <div className="flex flex-wrap items-end gap-2">
+        <Suspense fallback={<div className="input max-w-md animate-pulse" />}>
+          <LiveSearch placeholder="Buscar por nº, cliente o NIF…" />
+        </Suspense>
+        <Suspense fallback={null}>
+          <LiveSelect
+            param="status"
+            allLabel="Todos los estados"
+            options={["BORRADOR", "ENVIADO", "ACEPTADO", "RECHAZADO", "EXPIRADO"].map(
+              (s) => ({ value: s, label: s })
+            )}
+          />
+        </Suspense>
+      </div>
 
       <QuotesTable quotes={rows} />
 
