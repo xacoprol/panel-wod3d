@@ -231,6 +231,77 @@ export async function convertQuoteToInvoice(quoteId: string) {
   redirect(`/invoices/${invoice.id}`);
 }
 
+export async function setQuoteStatus(id: string, status: string) {
+  await requireAuth();
+  const allowed = ["BORRADOR", "ENVIADO", "ACEPTADO", "RECHAZADO", "EXPIRADO"];
+  if (!allowed.includes(status)) throw new Error("Estado no válido");
+
+  const quote = await prisma.quote.findUnique({
+    where: { id },
+    include: { invoice: true },
+  });
+  if (!quote) throw new Error("Presupuesto no encontrado");
+  if (quote.invoice && status !== "ACEPTADO") {
+    throw new Error("Ya convertido en factura");
+  }
+
+  await prisma.quote.update({ where: { id }, data: { status } });
+  revalidatePath("/quotes");
+  revalidatePath(`/quotes/${id}`);
+}
+
+export async function duplicateQuote(id: string) {
+  await requireAuth();
+  const source = await prisma.quote.findUnique({
+    where: { id },
+    include: { lines: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!source) throw new Error("Presupuesto no encontrado");
+
+  const lineInputs = source.lines.map((l) => ({
+    description: l.description,
+    quantity: Number(l.quantity),
+    unitPrice: Number(l.unitPrice),
+    vatRate: l.vatRate,
+    discountPct: l.discountPct,
+  }));
+  const totals = calculateDocument(lineInputs, 0, source.discountPct);
+  const num = await allocateQuoteNumber(prisma);
+
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const validUntil = source.validUntil
+    ? new Date(source.validUntil)
+    : (() => {
+        const d = new Date(today);
+        d.setDate(d.getDate() + 30);
+        return d;
+      })();
+
+  const quote = await prisma.quote.create({
+    data: {
+      seriesId: num.seriesId,
+      seriesPrefix: num.seriesPrefix,
+      number: num.number,
+      fullNumber: num.fullNumber,
+      clientId: source.clientId,
+      issueDate: today,
+      validUntil,
+      status: "BORRADOR",
+      notes: source.notes,
+      conditions: source.conditions,
+      discountPct: source.discountPct,
+      subtotal: totals.subtotal,
+      vatAmount: totals.vatAmount,
+      total: totals.total,
+    },
+  });
+  await createQuoteLines(quote.id, totals.lines);
+
+  revalidatePath("/quotes");
+  redirect(`/quotes/${quote.id}/edit`);
+}
+
 export async function deleteQuote(id: string) {
   await requireAuth();
   const inv = await prisma.invoice.findUnique({ where: { quoteId: id } });
@@ -241,3 +312,4 @@ export async function deleteQuote(id: string) {
   revalidatePath("/quotes");
   redirect("/quotes");
 }
+

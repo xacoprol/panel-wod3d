@@ -104,11 +104,12 @@ export async function GET(
   );
 
   const buffer = await renderToBuffer(doc);
+  const asDownload = _req.nextUrl.searchParams.get("download") === "1";
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="Presupuesto_${quote.fullNumber}.pdf"`,
+      "Content-Disposition": `${asDownload ? "attachment" : "inline"}; filename="Presupuesto_${quote.fullNumber}.pdf"`,
     },
   });
 }

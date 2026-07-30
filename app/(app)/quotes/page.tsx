@@ -1,9 +1,23 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate } from "@/lib/calculations";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
+import { QuotesTable, type QuoteListRow } from "@/components/quotes/QuotesTable";
+
+function primaryVatRate(rates: number[]): number | null {
+  if (!rates.length) return null;
+  const counts = new Map<number, number>();
+  for (const r of rates) counts.set(r, (counts.get(r) ?? 0) + 1);
+  let best = rates[0];
+  let bestCount = 0;
+  for (const [rate, count] of counts) {
+    if (count > bestCount) {
+      best = rate;
+      bestCount = count;
+    }
+  }
+  return best;
+}
 
 export default async function QuotesPage({
   searchParams,
@@ -22,11 +36,34 @@ export default async function QuotesPage({
 
   const quotes = await prisma.quote.findMany({
     where,
-    include: { client: true },
+    include: {
+      client: true,
+      invoice: { select: { id: true } },
+      lines: { select: { vatRate: true } },
+    },
     orderBy: { issueDate: "desc" },
     skip: meta.skip,
     take: meta.take,
   });
+
+  const rows: QuoteListRow[] = quotes.map((q) => ({
+    id: q.id,
+    fullNumber: q.fullNumber,
+    issueDate: q.issueDate.toISOString(),
+    validUntil: q.validUntil?.toISOString() ?? null,
+    status: q.status,
+    notes: q.notes,
+    discountPct: q.discountPct,
+    subtotal: Number(q.subtotal),
+    vatAmount: Number(q.vatAmount),
+    total: Number(q.total),
+    createdAt: q.createdAt.toISOString(),
+    updatedAt: q.updatedAt.toISOString(),
+    primaryVatRate: primaryVatRate(q.lines.map((l) => l.vatRate)),
+    clientName: q.client.name,
+    clientNif: q.client.nif,
+    invoiceId: q.invoice?.id ?? null,
+  }));
 
   const params = { status: sp.status, clientId: sp.clientId };
 
@@ -60,63 +97,16 @@ export default async function QuotesPage({
         </button>
       </form>
 
-      <div className="card-panel overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">Número</th>
-              <th className="px-4 py-3 font-medium">Cliente</th>
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quotes.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-ink-muted">
-                  No hay presupuestos.{" "}
-                  <Link href="/quotes/new" className="text-accent underline">
-                    Crear uno
-                  </Link>
-                </td>
-              </tr>
-            ) : (
-              quotes.map((q) => (
-                <tr
-                  key={q.id}
-                  className="relative border-b border-line/60 hover:bg-accent-soft/40"
-                >
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/quotes/${q.id}`}
-                      className="font-mono after:absolute after:inset-0 hover:text-accent"
-                    >
-                      {q.fullNumber}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{q.client.name}</td>
-                  <td className="px-4 py-3 text-ink-muted">{formatDate(q.issueDate)}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={q.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(Number(q.total))}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        <Pagination
-          basePath="/quotes"
-          params={params}
-          page={meta.page}
-          totalPages={meta.totalPages}
-          total={meta.total}
-          pageSize={meta.pageSize}
-        />
-      </div>
+      <QuotesTable quotes={rows} />
+
+      <Pagination
+        basePath="/quotes"
+        params={params}
+        page={meta.page}
+        totalPages={meta.totalPages}
+        total={meta.total}
+        pageSize={meta.pageSize}
+      />
     </div>
   );
 }

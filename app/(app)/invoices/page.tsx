@@ -1,10 +1,34 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate } from "@/lib/calculations";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
 import { DateInput } from "@/components/ui/DateInput";
+import {
+  InvoicesTable,
+  type InvoiceListRow,
+} from "@/components/invoices/InvoicesTable";
+
+function primaryVatRate(rates: number[]): number | null {
+  if (!rates.length) return null;
+  const counts = new Map<number, number>();
+  for (const r of rates) counts.set(r, (counts.get(r) ?? 0) + 1);
+  let best = rates[0];
+  let bestCount = 0;
+  for (const [rate, count] of counts) {
+    if (count > bestCount) {
+      best = rate;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+const LEGAL_LABELS: Record<string, string> = {
+  SUJETA: "Sujeta a IVA",
+  EXENTA: "Exenta",
+  INTRACOMUNITARIA: "Intracomunitaria",
+  EXPORTACION: "Exportación",
+};
 
 export default async function InvoicesPage({
   searchParams,
@@ -35,10 +59,44 @@ export default async function InvoicesPage({
 
   const invoices = await prisma.invoice.findMany({
     where,
-    include: { client: true },
+    include: {
+      client: true,
+      lines: {
+        orderBy: { sortOrder: "asc" },
+        select: { vatRate: true, description: true },
+      },
+    },
     orderBy: [{ issueDate: "desc" }, { number: "desc" }],
     skip: meta.skip,
     take: meta.take,
+  });
+
+  const rows: InvoiceListRow[] = invoices.map((inv) => {
+    const totalAmt = Number(inv.total);
+    const pending =
+      inv.status === "PAGADA" || inv.status === "ANULADA" ? 0 : totalAmt;
+    return {
+      id: inv.id,
+      fullNumber: inv.fullNumber,
+      issueDate: inv.issueDate.toISOString(),
+      dueDate: inv.dueDate?.toISOString() ?? null,
+      status: inv.status,
+      paymentMethod: inv.paymentMethod,
+      notes: inv.notes,
+      subtotal: Number(inv.subtotal),
+      vatAmount: Number(inv.vatAmount),
+      irpfRate: inv.irpfRate,
+      irpfAmount: Number(inv.irpfAmount),
+      total: totalAmt,
+      pendingAmount: pending,
+      createdAt: inv.createdAt.toISOString(),
+      updatedAt: inv.updatedAt.toISOString(),
+      primaryVatRate: primaryVatRate(inv.lines.map((l) => l.vatRate)),
+      description: inv.lines[0]?.description ?? null,
+      legal: LEGAL_LABELS[inv.vatOperationType] ?? inv.vatOperationType,
+      clientName: inv.client.name,
+      clientNif: inv.client.nif,
+    };
   });
 
   const params = { status: sp.status, from: sp.from, to: sp.to };
@@ -82,69 +140,16 @@ export default async function InvoicesPage({
         </button>
       </form>
 
-      <div className="card-panel overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">Número</th>
-              <th className="px-4 py-3 font-medium">Cliente</th>
-              <th className="px-4 py-3 font-medium">Emisión</th>
-              <th className="px-4 py-3 font-medium">Vence</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-ink-muted">
-                  No hay facturas.{" "}
-                  <Link href="/invoices/new" className="text-accent underline">
-                    Emitir una
-                  </Link>
-                </td>
-              </tr>
-            ) : (
-              invoices.map((inv) => (
-                <tr
-                  key={inv.id}
-                  className="relative border-b border-line/60 hover:bg-accent-soft/40"
-                >
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/invoices/${inv.id}`}
-                      className="font-mono after:absolute after:inset-0 hover:text-accent"
-                    >
-                      {inv.fullNumber}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{inv.client.name}</td>
-                  <td className="px-4 py-3 text-ink-muted">
-                    {formatDate(inv.issueDate)}
-                  </td>
-                  <td className="px-4 py-3 text-ink-muted">
-                    {formatDate(inv.dueDate)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={inv.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(Number(inv.total))}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        <Pagination
-          basePath="/invoices"
-          params={params}
-          page={meta.page}
-          totalPages={meta.totalPages}
-          total={meta.total}
-          pageSize={meta.pageSize}
-        />
-      </div>
+      <InvoicesTable invoices={rows} />
+
+      <Pagination
+        basePath="/invoices"
+        params={params}
+        page={meta.page}
+        totalPages={meta.totalPages}
+        total={meta.total}
+        pageSize={meta.pageSize}
+      />
     </div>
   );
 }
