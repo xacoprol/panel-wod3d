@@ -83,6 +83,7 @@ export default async function InvoicesPage({
         orderBy: { sortOrder: "asc" },
         select: { vatRate: true, description: true },
       },
+      payments: { select: { amount: true } },
     },
     orderBy: [{ issueDate: "desc" }, { number: "desc" }],
     skip: meta.skip,
@@ -91,8 +92,11 @@ export default async function InvoicesPage({
 
   const rows: InvoiceListRow[] = invoices.map((inv) => {
     const totalAmt = Number(inv.total);
+    const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0);
     const pending =
-      inv.status === "PAGADA" || inv.status === "ANULADA" ? 0 : totalAmt;
+      inv.status === "PAGADA" || inv.status === "ANULADA"
+        ? 0
+        : Math.max(0, Math.round((totalAmt - paid) * 100) / 100);
     return {
       id: inv.id,
       fullNumber: inv.fullNumber,

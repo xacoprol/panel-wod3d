@@ -33,7 +33,7 @@ export default async function EditQuotePage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <Link
         href={`/quotes/${id}`}
         className="inline-block text-sm text-ink-muted hover:text-accent"

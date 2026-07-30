@@ -7,6 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
 import { calculateDocument, type LineInput } from "@/lib/calculations";
 import { allocateInvoiceNumber, syncInvoiceSeriesNextNumber } from "@/lib/numbering";
+import {
+  paymentTotals,
+  syncInvoicePaymentStatus,
+} from "@/lib/invoice-payments";
 
 export type DocFormState = { error?: string };
 
@@ -137,6 +141,7 @@ export async function updateInvoice(
       },
     });
     await createInvoiceLines(id, totals.lines);
+    await syncInvoicePaymentStatus(id);
 
     revalidatePath("/invoices");
     revalidatePath(`/invoices/${id}`);
@@ -154,12 +159,97 @@ export async function setInvoiceStatus(id: string, status: string) {
   const allowed = ["PENDIENTE", "PAGADA", "VENCIDA", "ANULADA"];
   if (!allowed.includes(status)) throw new Error("Estado no válido");
 
-  const inv = await prisma.invoice.findUnique({ where: { id } });
+  const inv = await prisma.invoice.findUnique({
+    where: { id },
+    include: { payments: true },
+  });
   if (!inv) throw new Error("Factura no encontrada");
-  // Anulada is terminal for numbering purposes — number stays reserved
-  await prisma.invoice.update({ where: { id }, data: { status } });
+
+  if (status === "ANULADA") {
+    await prisma.invoice.update({ where: { id }, data: { status: "ANULADA" } });
+  } else if (status === "PAGADA") {
+    const { remaining } = paymentTotals(inv.total, inv.payments);
+    if (remaining > 0.001) {
+      await prisma.invoicePayment.create({
+        data: {
+          invoiceId: id,
+          amount: remaining,
+          paidAt: new Date(),
+          method: inv.paymentMethod || "Transferencia",
+          notes: "Marcada como pagada",
+        },
+      });
+    }
+    await prisma.invoice.update({ where: { id }, data: { status: "PAGADA" } });
+  } else if (status === "PENDIENTE") {
+    // Clear payments so status stays consistent with paid amount
+    await prisma.invoicePayment.deleteMany({ where: { invoiceId: id } });
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const overdue = inv.dueDate != null && inv.dueDate < startOfToday;
+    await prisma.invoice.update({
+      where: { id },
+      data: { status: overdue ? "VENCIDA" : "PENDIENTE" },
+    });
+  } else {
+    await prisma.invoice.update({ where: { id }, data: { status } });
+  }
+
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${id}`);
+  revalidatePath("/dashboard");
+}
+
+export async function addInvoicePayment(invoiceId: string, formData: FormData) {
+  await requireAuth();
+  const inv = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { payments: true },
+  });
+  if (!inv) throw new Error("Factura no encontrada");
+  if (inv.status === "ANULADA") throw new Error("Factura anulada");
+
+  const amount = parseFloat(String(formData.get("amount") ?? ""));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Importe no válido");
+  }
+
+  const { remaining } = paymentTotals(inv.total, inv.payments);
+  if (amount > remaining + 0.01) {
+    throw new Error(`El cobro supera lo pendiente (${remaining.toFixed(2)} €)`);
+  }
+
+  const paidAtRaw = String(formData.get("paidAt") ?? "").trim();
+  const paidAt = paidAtRaw ? new Date(paidAtRaw) : new Date();
+
+  await prisma.invoicePayment.create({
+    data: {
+      invoiceId,
+      amount,
+      paidAt,
+      method: String(formData.get("method") ?? "").trim() || inv.paymentMethod || null,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+    },
+  });
+
+  await syncInvoicePaymentStatus(invoiceId);
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/dashboard");
+}
+
+export async function deleteInvoicePayment(paymentId: string) {
+  await requireAuth();
+  const payment = await prisma.invoicePayment.findUnique({
+    where: { id: paymentId },
+  });
+  if (!payment) throw new Error("Cobro no encontrado");
+
+  await prisma.invoicePayment.delete({ where: { id: paymentId } });
+  await syncInvoicePaymentStatus(payment.invoiceId);
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${payment.invoiceId}`);
+  revalidatePath("/dashboard");
 }
 
 /** Anular mantiene el número reservado */

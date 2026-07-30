@@ -1,14 +1,20 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useTransition } from "react";
 import {
   calculateDocument,
   formatCurrency,
   VAT_RATES,
   type LineInput,
 } from "@/lib/calculations";
+import { CatalogPicker, type CatalogPick } from "@/components/catalog/CatalogPicker";
+import { saveLineToCatalog } from "@/app/(app)/catalog/actions";
 
 export type EditorLine = LineInput & { id: string };
+
+/** Shared line grid so header + rows stay aligned */
+const LINE_GRID =
+  "md:grid-cols-[minmax(0,1fr)_4rem_5rem_4rem_4.5rem_6.5rem_2.75rem]";
 
 type Props = {
   lines: EditorLine[];
@@ -34,6 +40,51 @@ function newLine(vatRate = 21): EditorLine {
   };
 }
 
+function LineActions({
+  onMove,
+  onRemove,
+  canRemove,
+}: {
+  onMove: (dir: -1 | 1) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  const btn =
+    "inline-flex size-5 shrink-0 items-center justify-center rounded text-[11px] leading-none text-ink-muted transition hover:bg-accent-soft/50 hover:text-ink disabled:opacity-40";
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex flex-col">
+        <button
+          type="button"
+          className={btn}
+          onClick={() => onMove(-1)}
+          title="Subir"
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          className={btn}
+          onClick={() => onMove(1)}
+          title="Bajar"
+        >
+          ↓
+        </button>
+      </div>
+      <button
+        type="button"
+        className={`${btn} text-danger hover:text-danger`}
+        onClick={onRemove}
+        disabled={!canRemove}
+        title="Eliminar"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 function LineFields({
   line,
   calcSubtotal,
@@ -49,118 +100,123 @@ function LineFields({
   onRemove: () => void;
   canRemove: boolean;
 }) {
+  const [saving, startSave] = useTransition();
+
   return (
-    <>
-      <div className="min-w-0 flex-1">
+    <div
+      className={`grid grid-cols-2 gap-2 sm:grid-cols-4 ${LINE_GRID} md:items-center`}
+    >
+      <div className="col-span-2 min-w-0 sm:col-span-4 md:col-span-1">
+        <div className="mb-1 flex items-center justify-between gap-2 md:sr-only">
+          <label className="block text-xs text-ink-muted">Concepto</label>
+        </div>
+        <div className="flex gap-1">
+          <input
+            className="input min-w-0 flex-1"
+            value={line.description}
+            onChange={(e) => onUpdate({ description: e.target.value })}
+            placeholder="Descripción del servicio o producto"
+          />
+          {line.description.trim() ? (
+            <button
+              type="button"
+              className="btn-ghost hidden shrink-0 px-2 py-1 text-xs md:inline-flex"
+              title="Guardar en catálogo"
+              disabled={saving}
+              onClick={() => {
+                startSave(() => {
+                  void saveLineToCatalog({
+                    description: line.description,
+                    unitPrice: line.unitPrice,
+                    vatRate: line.vatRate,
+                    discountPct: line.discountPct,
+                  });
+                });
+              }}
+            >
+              ★
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div>
         <label className="mb-1 block text-xs text-ink-muted md:sr-only">
-          Concepto
+          Cant.
         </label>
         <input
-          className="input"
-          value={line.description}
-          onChange={(e) => onUpdate({ description: e.target.value })}
-          placeholder="Descripción del servicio o producto"
+          type="number"
+          step="0.01"
+          min="0"
+          className="input px-1.5 text-right tabular-nums"
+          value={line.quantity}
+          onChange={(e) =>
+            onUpdate({ quantity: parseFloat(e.target.value) || 0 })
+          }
         />
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:contents">
-        <div className="md:w-20">
-          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
-            Cant.
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            className="input text-right"
-            value={line.quantity}
-            onChange={(e) =>
-              onUpdate({ quantity: parseFloat(e.target.value) || 0 })
-            }
-          />
-        </div>
-        <div className="md:w-28">
-          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
-            Precio
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            className="input text-right"
-            value={line.unitPrice}
-            onChange={(e) =>
-              onUpdate({ unitPrice: parseFloat(e.target.value) || 0 })
-            }
-          />
-        </div>
-        <div className="md:w-20">
-          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
-            Dto %
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            className="input text-right"
-            value={line.discountPct}
-            onChange={(e) =>
-              onUpdate({ discountPct: parseFloat(e.target.value) || 0 })
-            }
-          />
-        </div>
-        <div className="md:w-24">
-          <label className="mb-1 block text-xs text-ink-muted md:sr-only">
-            IVA %
-          </label>
-          <select
-            className="input"
-            value={line.vatRate}
-            onChange={(e) =>
-              onUpdate({ vatRate: parseFloat(e.target.value) })
-            }
-          >
-            {VAT_RATES.map((r) => (
-              <option key={r} value={r}>
-                {r}%
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+          Precio
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          className="input px-1.5 text-right tabular-nums"
+          value={line.unitPrice}
+          onChange={(e) =>
+            onUpdate({ unitPrice: parseFloat(e.target.value) || 0 })
+          }
+        />
       </div>
-      <div className="flex items-center justify-between gap-2 md:w-28 md:justify-end">
-        <span className="font-mono text-sm font-medium tabular-nums">
+      <div>
+        <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+          Dto %
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          max="100"
+          className="input px-1.5 text-right tabular-nums"
+          value={line.discountPct}
+          onChange={(e) =>
+            onUpdate({ discountPct: parseFloat(e.target.value) || 0 })
+          }
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs text-ink-muted md:sr-only">
+          IVA %
+        </label>
+        <select
+          className="input px-1.5"
+          value={line.vatRate}
+          onChange={(e) =>
+            onUpdate({ vatRate: parseFloat(e.target.value) })
+          }
+        >
+          {VAT_RATES.map((r) => (
+            <option key={r} value={r}>
+              {r}%
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="col-span-2 flex items-center justify-between gap-2 border-t border-line/60 pt-2 sm:col-span-4 md:col-span-1 md:justify-end md:border-0 md:pt-0">
+        <span className="font-mono text-sm font-medium tabular-nums md:text-right">
           {formatCurrency(calcSubtotal)}
         </span>
-        <div className="flex shrink-0 gap-0.5">
-          <button
-            type="button"
-            className="btn-ghost px-1.5 py-1 text-xs"
-            onClick={() => onMove(-1)}
-            title="Subir"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            className="btn-ghost px-1.5 py-1 text-xs"
-            onClick={() => onMove(1)}
-            title="Bajar"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            className="btn-ghost px-1.5 py-1 text-xs text-danger"
-            onClick={onRemove}
-            disabled={!canRemove}
-            title="Eliminar"
-          >
-            ×
-          </button>
+        <div className="flex shrink-0 md:hidden">
+          <LineActions onMove={onMove} onRemove={onRemove} canRemove={canRemove} />
         </div>
       </div>
-    </>
+      <div className="hidden md:flex md:items-center md:justify-end">
+        <LineActions onMove={onMove} onRemove={onRemove} canRemove={canRemove} />
+      </div>
+    </div>
   );
 }
 
@@ -201,15 +257,18 @@ export function LineItemsEditor({
   return (
     <div className="space-y-0">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_16rem]">
-        <div className="space-y-3">
-          {/* Desktop header */}
-          <div className="hidden gap-2 px-1 text-xs font-medium uppercase tracking-wide text-ink-muted md:flex md:items-center">
-            <span className="min-w-0 flex-1">Concepto</span>
-            <span className="w-20 text-right">Cant.</span>
-            <span className="w-28 text-right">Precio</span>
-            <span className="w-20 text-right">Dto %</span>
-            <span className="w-24 text-right">IVA %</span>
-            <span className="w-28 text-right">Importe</span>
+        <div className="min-w-0 space-y-3 overflow-x-auto">
+          {/* Desktop header — same grid + padding as rows */}
+          <div
+            className={`hidden gap-2 px-2 text-xs font-medium uppercase tracking-wide text-ink-muted md:grid ${LINE_GRID} md:items-center`}
+          >
+            <span>Concepto</span>
+            <span className="px-1.5 text-right">Cant.</span>
+            <span className="px-1.5 text-right">Precio</span>
+            <span className="px-1.5 text-right">Dto %</span>
+            <span className="px-1.5 text-right">IVA %</span>
+            <span className="text-right">Importe</span>
+            <span aria-hidden className="block" />
           </div>
 
           {lines.map((line, i) => {
@@ -217,7 +276,7 @@ export function LineItemsEditor({
             return (
               <div
                 key={line.id}
-                className="rounded-xl border border-line bg-bg p-3 transition hover:border-accent/30 hover:bg-accent-soft/20 md:flex md:items-start md:gap-2 md:bg-transparent md:p-2 md:hover:bg-accent-soft/30"
+                className="rounded-xl border border-line bg-bg p-3 transition hover:border-accent/30 hover:bg-accent-soft/20 md:border-transparent md:bg-transparent md:p-2 md:hover:bg-accent-soft/30"
               >
                 <LineFields
                   line={line}
@@ -231,13 +290,30 @@ export function LineItemsEditor({
             );
           })}
 
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-bg/50 px-4 py-3.5 text-sm font-medium text-ink-muted transition hover:border-accent hover:bg-accent-soft/40 hover:text-accent"
-            onClick={() => onChange([...lines, newLine(defaultVatRate)])}
-          >
-            + Añadir línea
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-bg/50 px-4 py-3.5 text-sm font-medium text-ink-muted transition hover:border-accent hover:bg-accent-soft/40 hover:text-accent"
+              onClick={() => onChange([...lines, newLine(defaultVatRate)])}
+            >
+              + Añadir línea
+            </button>
+            <CatalogPicker
+              onPick={(item: CatalogPick) => {
+                onChange([
+                  ...lines,
+                  {
+                    id: crypto.randomUUID(),
+                    description: item.description,
+                    quantity: 1,
+                    unitPrice: item.unitPrice,
+                    vatRate: item.vatRate,
+                    discountPct: item.defaultDiscountPct,
+                  },
+                ]);
+              }}
+            />
+          </div>
         </div>
 
         <aside className="h-fit space-y-3 rounded-xl border border-line bg-accent-soft/35 p-4 text-sm lg:sticky lg:top-4">

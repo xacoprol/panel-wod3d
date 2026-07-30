@@ -36,7 +36,7 @@ export default async function NewInvoicePage({
     seriesOptions.find((s) => s.isDefault) ?? seriesOptions[0];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <Link
         href="/invoices"
         className="inline-block text-sm text-ink-muted hover:text-accent"

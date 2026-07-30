@@ -21,7 +21,7 @@ export default async function NewQuotePage({
   ]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
       <Link
         href="/quotes"
         className="inline-block text-sm text-ink-muted hover:text-accent"

@@ -72,6 +72,16 @@ export async function updateSettings(
     bankName: String(formData.get("bankName") ?? "").trim() || null,
     bizumPhone:
       String(formData.get("bizumPhone") ?? "").trim() || "603024030",
+    reminderEnabled: formData.get("reminderEnabled") === "on" || formData.get("reminderEnabled") === "1",
+    reminderDaysBefore: Math.max(
+      0,
+      parseInt(String(formData.get("reminderDaysBefore") ?? "3"), 10) || 3
+    ),
+    reminderOnOverdue:
+      formData.get("reminderOnOverdue") === "on" ||
+      formData.get("reminderOnOverdue") === "1",
+    reminderSubject: String(formData.get("reminderSubject") ?? "").trim(),
+    reminderBody: String(formData.get("reminderBody") ?? "").trim(),
     themeBg: sanitizeHex(
       String(formData.get("themeBg") ?? ""),
       DEFAULT_THEME.themeBg

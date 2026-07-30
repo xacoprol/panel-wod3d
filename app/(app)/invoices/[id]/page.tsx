@@ -2,9 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
+import { paymentTotals } from "@/lib/invoice-payments";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { annulInvoice, deleteInvoice, setInvoiceStatus } from "../actions";
 import { SendDocumentButton } from "@/components/documents/SendDocumentButton";
+import { InvoicePaymentsPanel } from "@/components/invoices/InvoicePaymentsPanel";
+import { MarkPendingButton } from "@/components/invoices/MarkPendingButton";
+import { SendReminderButton } from "@/components/documents/SendReminderButton";
 
 export default async function InvoiceDetailPage({
   params,
@@ -19,12 +23,19 @@ export default async function InvoiceDetailPage({
       lines: { orderBy: { sortOrder: "asc" } },
       quote: true,
       recurringTemplate: true,
+      payments: { orderBy: { paidAt: "desc" } },
     },
   });
   if (!invoice) notFound();
 
+  const totals = paymentTotals(invoice.total, invoice.payments);
+  const canRemind =
+    invoice.status !== "ANULADA" &&
+    invoice.status !== "PAGADA" &&
+    totals.remaining > 0;
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/invoices" className="text-sm text-ink-muted hover:text-accent">
@@ -52,6 +63,7 @@ export default async function InvoiceDetailPage({
           {invoice.status !== "ANULADA" && (
             <>
               <SendDocumentButton kind="invoice" id={id} />
+              {canRemind ? <SendReminderButton invoiceId={id} /> : null}
               <Link href={`/invoices/${id}/edit`} className="btn-secondary">
                 Editar
               </Link>
@@ -76,12 +88,8 @@ export default async function InvoiceDetailPage({
               </button>
             </form>
           )}
-          {invoice.status === "PAGADA" && (
-            <form action={setInvoiceStatus.bind(null, id, "PENDIENTE")}>
-              <button type="submit" className="btn-secondary">
-                Marcar pendiente
-              </button>
-            </form>
+          {(invoice.status === "PAGADA" || invoice.payments.length > 0) && (
+            <MarkPendingButton invoiceId={id} />
           )}
           <form action={annulInvoice.bind(null, id)}>
             <button type="submit" className="btn-ghost text-warning text-sm">
@@ -90,6 +98,22 @@ export default async function InvoiceDetailPage({
           </form>
         </div>
       )}
+
+      <InvoicePaymentsPanel
+        invoiceId={id}
+        total={totals.total}
+        paid={totals.paid}
+        remaining={totals.remaining}
+        defaultMethod={invoice.paymentMethod || "Transferencia"}
+        payments={invoice.payments.map((p) => ({
+          id: p.id,
+          amount: Number(p.amount),
+          paidAt: p.paidAt,
+          method: p.method,
+          notes: p.notes,
+        }))}
+        disabled={invoice.status === "ANULADA"}
+      />
 
       <form action={deleteInvoice.bind(null, id)}>
         <button
@@ -162,6 +186,20 @@ export default async function InvoiceDetailPage({
                 {formatCurrency(Number(invoice.total))}
               </span>
             </div>
+            {totals.paid > 0 && (
+              <>
+                <div className="flex justify-between text-success">
+                  <span>Cobrado</span>
+                  <span className="font-mono">{formatCurrency(totals.paid)}</span>
+                </div>
+                <div className="flex justify-between font-medium text-accent">
+                  <span>Pendiente</span>
+                  <span className="font-mono">
+                    {formatCurrency(totals.remaining)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

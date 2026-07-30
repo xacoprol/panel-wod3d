@@ -32,18 +32,12 @@ export default async function DashboardPage() {
     monthTotal,
     quarterTotal,
     yearTotal,
-    pending,
     upcoming,
     recentPending,
   ] = await Promise.all([
     sumInvoices(startOfMonth(now), endOfMonth(now)),
     sumInvoices(startOfQuarter(now), endOfQuarter(now)),
     sumInvoices(startOfYear(now), endOfYear(now)),
-    prisma.invoice.aggregate({
-      where: { status: "PENDIENTE" },
-      _sum: { total: true },
-      _count: true,
-    }),
     prisma.recurringInvoiceTemplate.findMany({
       where: { status: "ACTIVA", nextRunDate: { not: null } },
       include: { client: true },
@@ -52,11 +46,21 @@ export default async function DashboardPage() {
     }),
     prisma.invoice.findMany({
       where: { status: { in: ["PENDIENTE", "VENCIDA"] } },
-      include: { client: true },
+      include: { client: true, payments: { select: { amount: true } } },
       orderBy: { dueDate: "asc" },
       take: 8,
     }),
   ]);
+
+  const pendingList = await prisma.invoice.findMany({
+    where: { status: { in: ["PENDIENTE", "VENCIDA"] } },
+    include: { payments: { select: { amount: true } } },
+  });
+  const pendingAmount = pendingList.reduce((sum, inv) => {
+    const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0);
+    return sum + Math.max(0, Number(inv.total) - paid);
+  }, 0);
+  const pendingCount = pendingList.length;
 
   const chartData = [];
   for (let i = 5; i >= 0; i--) {
@@ -86,8 +90,8 @@ export default async function DashboardPage() {
           { label: "Año", value: yearTotal },
           {
             label: "Pendiente de cobro",
-            value: Number(pending._sum.total ?? 0),
-            hint: `${pending._count} facturas`,
+            value: pendingAmount,
+            hint: `${pendingCount} facturas`,
           },
         ].map((card) => (
           <div key={card.label} className="card-panel p-5">
@@ -179,7 +183,13 @@ export default async function DashboardPage() {
                     <StatusBadge status={inv.status} />
                   </td>
                   <td className="px-4 py-2 text-right font-mono">
-                    {formatCurrency(Number(inv.total))}
+                    {formatCurrency(
+                      Math.max(
+                        0,
+                        Number(inv.total) -
+                          inv.payments.reduce((s, p) => s + Number(p.amount), 0)
+                      )
+                    )}
                   </td>
                 </tr>
               ))

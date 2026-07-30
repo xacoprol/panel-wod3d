@@ -72,7 +72,7 @@ export function DocumentFormStickyBar({
 }: StickyBarProps) {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg-elevated/95 px-4 py-3 shadow-[0_-8px_24px_rgb(26_21_40_/_0.08)] backdrop-blur-md md:left-56">
-      <div className="pointer-events-auto mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+      <div className="pointer-events-auto mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
             {totalLabel}

@@ -354,6 +354,73 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
           </div>
         </section>
 
+        <section className="card-panel space-y-4 p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            Recordatorios de cobro
+          </h2>
+          <p className="text-xs text-ink-muted">
+            Variables extra: {"{{total}}"}, {"{{remaining}}"}, {"{{dueDate}}"}.
+            El cron diario envía como máximo 1 email/día por factura.
+          </p>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="reminderEnabled"
+              value="1"
+              defaultChecked={settings.reminderEnabled}
+              className="rounded border-line"
+            />
+            Activar envío automático (cron)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="reminderOnOverdue"
+              value="1"
+              defaultChecked={settings.reminderOnOverdue}
+              className="rounded border-line"
+            />
+            Recordar también facturas vencidas (máx. 1 cada 7 días)
+          </label>
+          <div className="max-w-xs">
+            <label className="label" htmlFor="reminderDaysBefore">
+              Días antes del vencimiento
+            </label>
+            <input
+              id="reminderDaysBefore"
+              name="reminderDaysBefore"
+              type="number"
+              min={0}
+              max={60}
+              className="input"
+              defaultValue={settings.reminderDaysBefore}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="reminderSubject">
+              Asunto recordatorio
+            </label>
+            <input
+              id="reminderSubject"
+              name="reminderSubject"
+              className="input"
+              defaultValue={settings.reminderSubject}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="reminderBody">
+              Cuerpo recordatorio
+            </label>
+            <textarea
+              id="reminderBody"
+              name="reminderBody"
+              rows={5}
+              className="input"
+              defaultValue={settings.reminderBody}
+            />
+          </div>
+        </section>
+
         <button type="submit" disabled={pending} className="btn-primary">
           {pending ? "Guardando…" : "Guardar ajustes"}
         </button>

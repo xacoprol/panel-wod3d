@@ -43,6 +43,13 @@ model CompanySettings {
   bankName        String?
   bizumPhone      String?  @default("603024030")
 
+  // Recordatorios de cobro
+  reminderEnabled    Boolean @default(false)
+  reminderDaysBefore Int     @default(3)
+  reminderOnOverdue  Boolean @default(true)
+  reminderSubject    String  @default("Recordatorio: factura {{number}} pendiente")
+  reminderBody       String  @default("Hola {{contact}},\n\nLe recordamos que la factura {{number}} por {{remaining}} vence el {{dueDate}}.\n\nUn saludo,\n{{company}}")
+
   // UX theme (CSS variables)
   themeBg           String @default("#F3F1F8")
   themeBgElevated   String @default("#FFFFFF")
@@ -206,7 +213,9 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lines InvoiceLine[]
+  lines     InvoiceLine[]
+  payments  InvoicePayment[]
+  reminders InvoiceReminderLog[]
 
   @@unique([seriesId, number])
   @@index([clientId])
@@ -228,6 +237,50 @@ model InvoiceLine {
   lineSubtotal Decimal
   lineVat      Decimal
   lineTotal    Decimal
+}
+
+model InvoicePayment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Decimal
+  paidAt    DateTime @default(now())
+  method    String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([paidAt])
+}
+
+model InvoiceReminderLog {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sentAt    DateTime @default(now())
+  kind      String // MANUAL | BEFORE_DUE | OVERDUE
+
+  @@index([invoiceId])
+  @@index([sentAt])
+  @@index([kind])
+}
+
+// ─── Catalog of reusable line items ─────────────────────────────────────────
+
+model CatalogItem {
+  id                 String   @id @default(cuid())
+  name               String
+  description        String
+  unitPrice          Decimal  @default(0)
+  vatRate            Float    @default(21)
+  defaultDiscountPct Float    @default(0)
+  active             Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([name])
+  @@index([active])
 }
 
 // ─── Recurring invoices ─────────────────────────────────────────────────────
