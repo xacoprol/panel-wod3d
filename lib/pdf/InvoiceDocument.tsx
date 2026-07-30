@@ -63,7 +63,7 @@ export type InvoicePdfProps = {
  */
 const INK = "#1A1528";
 const MUTED = "#6B6578";
-const BG = "#F3F1F8";
+const BG = "#FFFFFF";
 const SURFACE = "#FFFFFF";
 const SOFT = "#EFE8FF";
 const SOFT_MID = "#E8E4F2";
