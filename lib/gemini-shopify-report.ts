@@ -1,7 +1,12 @@
 /**
  * OCR del Informe IVA / resumen de ventas Shopify (captura o PDF).
  */
-import { geminiConfigured } from "@/lib/gemini-expense";
+import {
+  geminiConfigured,
+  generateJsonWithFallback,
+  getGeminiApiKey,
+  resolveUploadMime,
+} from "@/lib/gemini-client";
 import type { ShopifyIvaSummaryDraft } from "@/lib/shopify-sales-report";
 
 const ALLOWED_MIME = new Set([
@@ -13,14 +18,6 @@ const ALLOWED_MIME = new Set([
 ]);
 
 const MAX_BYTES = 12 * 1024 * 1024;
-
-const DEFAULT_MODELS = [
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-3.1-flash-lite",
-  "gemini-3.5-flash-lite",
-  "gemini-3.5-flash",
-];
 
 const MONTH_ES: Record<string, number> = {
   enero: 1,
@@ -54,119 +51,6 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-function getGeminiApiKey(): string | null {
-  return (
-    process.env.GEMINI_API_KEY?.trim() ||
-    process.env.GOOGLE_API_KEY?.trim() ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
-    null
-  );
-}
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function rankModelName(name: string): number {
-  const n = name.toLowerCase();
-  if (n.includes("flash-lite")) return 0;
-  if (n.includes("flash") && !n.includes("pro")) return 1;
-  if (n.includes("pro")) return 3;
-  return 2;
-}
-
-async function listGenerateContentModels(apiKey: string): Promise<string[]> {
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${encodeURIComponent(apiKey)}`
-    );
-    if (!res.ok) return [];
-    const json = (await res.json()) as {
-      models?: Array<{
-        name?: string;
-        supportedGenerationMethods?: string[];
-      }>;
-    };
-    const names = (json.models ?? [])
-      .filter((m) =>
-        (m.supportedGenerationMethods ?? []).includes("generateContent")
-      )
-      .map((m) => (m.name ?? "").replace(/^models\//, ""))
-      .filter((n) => n && !n.includes("embed") && !n.includes("imagen"));
-    names.sort(
-      (a, b) => rankModelName(a) - rankModelName(b) || a.localeCompare(b)
-    );
-    return names;
-  } catch {
-    return [];
-  }
-}
-
-async function getModelCandidates(apiKey: string): Promise<string[]> {
-  const preferred = process.env.GEMINI_MODEL?.trim();
-  const listed = await listGenerateContentModels(apiKey);
-  const base = listed.length ? listed : DEFAULT_MODELS;
-  const list = preferred
-    ? [preferred, ...base.filter((m) => m !== preferred)]
-    : [...base];
-  return [...new Set(list)].slice(0, 6);
-}
-
-type GeminiHttpResult =
-  | { ok: true; text: string }
-  | { ok: false; status: number; body: string };
-
-async function callGemini(opts: {
-  apiKey: string;
-  model: string;
-  mime: string;
-  base64: string;
-  prompt: string;
-}): Promise<GeminiHttpResult> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model)}:generateContent?key=${encodeURIComponent(opts.apiKey)}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: opts.prompt },
-            {
-              inline_data: {
-                mime_type: opts.mime,
-                data: opts.base64,
-              },
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    return { ok: false, status: res.status, body };
-  }
-
-  const json = (await res.json()) as {
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-    }>;
-  };
-
-  const text =
-    json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ??
-    "";
-  return { ok: true, text };
-}
-
 export { geminiConfigured };
 
 function parseMoney(raw: unknown): number {
@@ -176,11 +60,9 @@ function parseMoney(raw: unknown): number {
     .replace(/€/g, "")
     .replace(/\s/g, "");
   if (!s) return 0;
-  // EU: 1.234,56 o 452,50
   if (/^-?\d{1,3}(\.\d{3})*,\d{1,2}$/.test(s) || /^-?\d+,\d+$/.test(s)) {
     s = s.replace(/\./g, "").replace(",", ".");
   } else {
-    // US / JSON: 1,234.56 o 452.50
     s = s.replace(/,/g, "");
   }
   const n = Number(s);
@@ -193,7 +75,13 @@ function parsePeriodFromLabel(label: string): {
 } | null {
   const m = /([A-Za-zÁÉÍÓÚáéíóúñÑ]+)\s+(\d{4})/.exec(label);
   if (!m) return null;
-  const month = MONTH_ES[m[1].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")];
+  const month =
+    MONTH_ES[
+      m[1]
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+    ];
   const year = parseInt(m[2], 10);
   if (!month || !year) return null;
   return { year, month };
@@ -281,7 +169,7 @@ export async function parseShopifyIvaReportDocument(file: {
     );
   }
 
-  const mime = file.mimeType.split(";")[0].trim().toLowerCase();
+  const mime = resolveUploadMime(file.mimeType, file.fileName);
   if (!ALLOWED_MIME.has(mime)) {
     throw new Error("Formato no soportado. Usa PDF, JPG, PNG o WebP");
   }
@@ -289,7 +177,7 @@ export async function parseShopifyIvaReportDocument(file: {
     throw new Error("El archivo supera 12 MB");
   }
 
-  const prompt = `Eres un asistente fiscal. Extrae los datos de este INFORME IVA / resumen de ventas de Shopify (captura de pantalla o PDF).
+  const prompt = `Eres un asistente fiscal. Extrae los datos de este INFORME IVA / resumen de ventas Shopify (captura de pantalla o PDF).
 
 NO es una factura unitaria ni un CSV por país: es un resumen mensual tipo «Informe IVA — Abril 2026» con conceptos:
 Ventas brutas, Descuentos, Devoluciones, Ventas netas, Gastos de envío, IVA recaudado, Total ventas.
@@ -318,57 +206,11 @@ Reglas:
 - Archivo: ${file.fileName}`;
 
   const base64 = file.buffer.toString("base64");
-  const models = await getModelCandidates(apiKey);
-  let last429 = false;
-  let last404 = false;
-  let lastError = "";
-
-  for (const model of models) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) await sleep(1500 * attempt);
-      const result = await callGemini({
-        apiKey,
-        model,
-        mime,
-        base64,
-        prompt,
-      });
-
-      if (result.ok) {
-        return parseDraftFromText(result.text);
-      }
-
-      lastError = result.body.slice(0, 200);
-      if (result.status === 429) {
-        last429 = true;
-        continue;
-      }
-      if (result.status === 404) {
-        last404 = true;
-        break;
-      }
-      if (result.status === 400 || result.status === 403) {
-        throw new Error(
-          `Gemini rechazó la petición (${result.status})${lastError ? `: ${lastError}` : "."}`
-        );
-      }
-      throw new Error(
-        `Error Gemini ${result.status}${lastError ? `: ${lastError}` : ""}`
-      );
-    }
-  }
-
-  if (last429) {
-    throw new Error(
-      "Límite de Gemini agotado. Espera un minuto o activa facturación en Google AI Studio."
-    );
-  }
-  if (last404) {
-    throw new Error(
-      "Ningún modelo Gemini disponible. Define GEMINI_MODEL en el entorno."
-    );
-  }
-  throw new Error(
-    `No se pudo usar Gemini${lastError ? `: ${lastError}` : "."}`
-  );
+  const text = await generateJsonWithFallback({
+    apiKey,
+    mime,
+    base64,
+    prompt,
+  });
+  return parseDraftFromText(text);
 }

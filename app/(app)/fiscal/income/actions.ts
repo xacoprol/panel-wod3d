@@ -9,6 +9,7 @@ import {
   geminiConfigured,
   parseShopifyIvaReportDocument,
 } from "@/lib/gemini-shopify-report";
+import { resolveUploadMime } from "@/lib/gemini-client";
 import { parseShopifyIvaSummaryDraft } from "@/lib/shopify-sales-report";
 import type { AmazonTaxReportRow } from "@/lib/amazon-tax-report";
 
@@ -79,7 +80,7 @@ export async function parseMarketplaceIncomeUpload(
       const buffer = Buffer.from(await file.arrayBuffer());
       const draft = await parseShopifyIvaReportDocument({
         buffer,
-        mimeType: file.type || "application/octet-stream",
+        mimeType: resolveUploadMime(file.type, file.name),
         fileName: file.name,
       });
       const parsed = parseShopifyIvaSummaryDraft(draft, file.name);

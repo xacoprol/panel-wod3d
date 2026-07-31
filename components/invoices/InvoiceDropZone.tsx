@@ -11,9 +11,33 @@ import { Spinner } from "@/components/ui/Spinner";
 
 const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,image/gif";
 const MAX_FILES = 20;
+/** Si el server action no responde (proxy/Vercel), desbloquear la UI. */
+const CLIENT_TIMEOUT_MS = 90_000;
 
 function newLocalId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                "Tiempo de espera agotado al leer la factura. Prueba de nuevo o sube PNG/JPG."
+              )
+            ),
+          ms
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 type Props = {
@@ -45,49 +69,69 @@ export function InvoiceDropZone({ compact }: Props) {
     const ok: InvoiceQueueItem[] = [];
     const failures: string[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setProgress({
-        current: i + 1,
-        total: files.length,
-        fileName: file.name,
-      });
+    setProgress({
+      current: 1,
+      total: files.length,
+      fileName: files[0].name,
+    });
 
-      const fd = new FormData();
-      fd.set("file", file);
-      const res = await parseInvoiceFromUpload(fd);
-      if (!res.ok) {
-        failures.push(`${file.name}: ${res.error}`);
-        continue;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setProgress({
+          current: i + 1,
+          total: files.length,
+          fileName: file.name,
+        });
+
+        const fd = new FormData();
+        fd.set("file", file);
+        let res: Awaited<ReturnType<typeof parseInvoiceFromUpload>>;
+        try {
+          res = await withTimeout(parseInvoiceFromUpload(fd), CLIENT_TIMEOUT_MS);
+        } catch (e) {
+          failures.push(
+            `${file.name}: ${e instanceof Error ? e.message : "Error al leer"}`
+          );
+          continue;
+        }
+        if (!res.ok) {
+          failures.push(`${file.name}: ${res.error}`);
+          continue;
+        }
+        ok.push({
+          ...res.draft,
+          localId: newLocalId(),
+          fileName: file.name,
+        });
+
+        if (i < files.length - 1) {
+          await new Promise((r) => setTimeout(r, 800));
+        }
       }
-      ok.push({
-        ...res.draft,
-        localId: newLocalId(),
-        fileName: file.name,
-      });
 
-      if (i < files.length - 1) {
-        await new Promise((r) => setTimeout(r, 800));
+      if (!ok.length) {
+        setError(
+          failures[0] ?? "No se pudo leer ninguna factura. Prueba de nuevo."
+        );
+        return;
       }
-    }
 
-    setProgress(null);
+      if (failures.length) {
+        setError(
+          `Se leyeron ${ok.length} de ${files.length}. Fallaron: ${failures.join(" · ")}`
+        );
+      }
 
-    if (!ok.length) {
+      saveInvoiceDraftQueue(ok);
+      router.push("/invoices/import");
+    } catch (e) {
       setError(
-        failures[0] ?? "No se pudo leer ninguna factura. Prueba de nuevo."
+        e instanceof Error ? e.message : "No se pudo procesar la subida"
       );
-      return;
+    } finally {
+      setProgress(null);
     }
-
-    if (failures.length) {
-      setError(
-        `Se leyeron ${ok.length} de ${files.length}. Fallaron: ${failures.join(" · ")}`
-      );
-    }
-
-    saveInvoiceDraftQueue(ok);
-    router.push("/invoices/import");
   }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {

@@ -6,6 +6,7 @@ import {
   parseIssuedInvoiceDocument,
   type ParsedInvoiceDraft,
 } from "@/lib/gemini-invoice";
+import { resolveUploadMime } from "@/lib/gemini-client";
 
 export type ParseInvoiceResult =
   | { ok: true; draft: ParsedInvoiceDraft }
@@ -33,7 +34,7 @@ export async function parseInvoiceFromUpload(
     const buffer = Buffer.from(await file.arrayBuffer());
     const draft = await parseIssuedInvoiceDocument({
       buffer,
-      mimeType: file.type || "application/octet-stream",
+      mimeType: resolveUploadMime(file.type, file.name),
       fileName: file.name,
     });
     return { ok: true, draft };

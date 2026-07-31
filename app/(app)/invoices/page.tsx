@@ -16,6 +16,9 @@ import {
 import { InvoiceDropZone } from "@/components/invoices/InvoiceDropZone";
 import type { Prisma } from "@prisma/client";
 
+/** OCR Gemini puede superar el límite por defecto de Vercel Hobby. */
+export const maxDuration = 60;
+
 function primaryVatRate(rates: number[]): number | null {
   if (!rates.length) return null;
   const counts = new Map<number, number>();
