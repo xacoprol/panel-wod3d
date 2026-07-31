@@ -2,7 +2,6 @@
 
 import { useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { parseExpenseFromUpload } from "@/app/(app)/fiscal/expenses/parse-actions";
 import type { ParsedExpenseDraft } from "@/lib/gemini-expense";
 import {
   saveExpenseDraft,
@@ -18,10 +17,65 @@ type Props = {
 };
 
 const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,image/gif";
-const MAX_FILES = 20;
+const MAX_FILES = 30;
+const CLIENT_TIMEOUT_MS = 90_000;
 
 function newLocalId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+type ParseApiResult =
+  | { ok: true; draft: ParsedExpenseDraft }
+  | { ok: false; error: string };
+
+async function parseExpenseViaApi(file: File): Promise<ParseApiResult> {
+  const fd = new FormData();
+  fd.set("file", file);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
+
+  try {
+    const res = await fetch("/api/expenses/parse", {
+      method: "POST",
+      body: fd,
+      signal: controller.signal,
+      credentials: "same-origin",
+    });
+
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      if (res.status === 504 || res.status === 408) {
+        return {
+          ok: false,
+          error:
+            "Tiempo de espera agotado. Prueba PNG/JPG o sube de una en una.",
+        };
+      }
+      return {
+        ok: false,
+        error: `Respuesta inesperada del servidor (${res.status}). Prueba de nuevo.`,
+      };
+    }
+
+    const data = (await res.json()) as ParseApiResult;
+    if (!data || typeof data !== "object" || !("ok" in data)) {
+      return { ok: false, error: "Respuesta inválida del servidor" };
+    }
+    return data;
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      return {
+        ok: false,
+        error: "Tiempo de espera agotado al leer el gasto.",
+      };
+    }
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error de red al subir",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function ExpenseDropZone({ onParsed, compact }: Props) {
@@ -49,61 +103,70 @@ export function ExpenseDropZone({ onParsed, compact }: Props) {
     const ok: ExpenseQueueItem[] = [];
     const failures: string[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setProgress({
-        current: i + 1,
-        total: files.length,
-        fileName: file.name,
-      });
+    setProgress({
+      current: 1,
+      total: files.length,
+      fileName: files[0].name,
+    });
 
-      const fd = new FormData();
-      fd.set("file", file);
-      const res = await parseExpenseFromUpload(fd);
-      if (!res.ok) {
-        failures.push(`${file.name}: ${res.error}`);
-        continue;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setProgress({
+          current: i + 1,
+          total: files.length,
+          fileName: file.name,
+        });
+
+        const res = await parseExpenseViaApi(file);
+        if (!res.ok) {
+          failures.push(`${file.name}: ${res.error}`);
+          continue;
+        }
+        ok.push({
+          ...res.draft,
+          localId: newLocalId(),
+          fileName: file.name,
+        });
+
+        if (i < files.length - 1) {
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
-      ok.push({
-        ...res.draft,
-        localId: newLocalId(),
-        fileName: file.name,
-      });
 
-      // Pausa breve entre lecturas para no saturar el free tier de Gemini
-      if (i < files.length - 1) {
-        await new Promise((r) => setTimeout(r, 800));
+      if (!ok.length) {
+        setError(
+          failures[0] ?? "No se pudo leer ninguna factura. Prueba de nuevo."
+        );
+        return;
       }
-    }
 
-    setProgress(null);
+      if (failures.length) {
+        setError(
+          `Se leyeron ${ok.length} de ${files.length}. Fallaron: ${failures.join(" · ")}`
+        );
+      }
 
-    if (!ok.length) {
+      if (ok.length === 1 && onParsed) {
+        onParsed(ok[0]);
+        return;
+      }
+
+      if (ok.length === 1) {
+        saveExpenseDraft(ok[0]);
+        router.push("/fiscal/expenses/new");
+        return;
+      }
+
+      saveExpenseDraftQueue(ok);
+      router.push("/fiscal/expenses/batch");
+    } catch (e) {
       setError(
-        failures[0] ?? "No se pudo leer ninguna factura. Prueba de nuevo."
+        e instanceof Error ? e.message : "No se pudo procesar la subida"
       );
-      return;
+    } finally {
+      setProgress(null);
     }
-
-    if (failures.length) {
-      setError(
-        `Se leyeron ${ok.length} de ${files.length}. Fallaron: ${failures.join(" · ")}`
-      );
-    }
-
-    if (ok.length === 1 && onParsed) {
-      onParsed(ok[0]);
-      return;
-    }
-
-    if (ok.length === 1) {
-      saveExpenseDraft(ok[0]);
-      router.push("/fiscal/expenses/new");
-      return;
-    }
-
-    saveExpenseDraftQueue(ok);
-    router.push("/fiscal/expenses/batch");
   }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {

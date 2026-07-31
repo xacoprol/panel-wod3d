@@ -10,7 +10,7 @@ import {
 import { Spinner } from "@/components/ui/Spinner";
 
 const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,image/gif";
-const MAX_FILES = 12;
+const MAX_FILES = 30;
 
 function newLocalId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

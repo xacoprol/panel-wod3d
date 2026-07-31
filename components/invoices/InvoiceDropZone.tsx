@@ -2,7 +2,7 @@
 
 import { useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { parseInvoiceFromUpload } from "@/app/(app)/invoices/parse-actions";
+import type { ParsedInvoiceDraft } from "@/lib/gemini-invoice";
 import {
   saveInvoiceDraftQueue,
   type InvoiceQueueItem,
@@ -10,33 +10,69 @@ import {
 import { Spinner } from "@/components/ui/Spinner";
 
 const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,image/gif";
-const MAX_FILES = 20;
-/** Si el server action no responde (proxy/Vercel), desbloquear la UI. */
+const MAX_FILES = 30;
 const CLIENT_TIMEOUT_MS = 90_000;
 
 function newLocalId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+type ParseApiResult =
+  | { ok: true; draft: ParsedInvoiceDraft }
+  | { ok: false; error: string };
+
+async function parseInvoiceViaApi(file: File): Promise<ParseApiResult> {
+  const fd = new FormData();
+  fd.set("file", file);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
+
   try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () =>
-            reject(
-              new Error(
-                "Tiempo de espera agotado al leer la factura. Prueba de nuevo o sube PNG/JPG."
-              )
-            ),
-          ms
-        );
-      }),
-    ]);
+    const res = await fetch("/api/invoices/parse", {
+      method: "POST",
+      body: fd,
+      signal: controller.signal,
+      credentials: "same-origin",
+    });
+
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      if (res.status === 413) {
+        return { ok: false, error: "Archivo demasiado grande" };
+      }
+      if (res.status === 504 || res.status === 408) {
+        return {
+          ok: false,
+          error:
+            "Tiempo de espera agotado en el servidor. Prueba una imagen PNG/JPG o de una en una.",
+        };
+      }
+      return {
+        ok: false,
+        error: `Respuesta inesperada del servidor (${res.status}). Prueba de nuevo.`,
+      };
+    }
+
+    const data = (await res.json()) as ParseApiResult;
+    if (!data || typeof data !== "object" || !("ok" in data)) {
+      return { ok: false, error: "Respuesta inválida del servidor" };
+    }
+    return data;
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      return {
+        ok: false,
+        error:
+          "Tiempo de espera agotado al leer la factura. Prueba PNG/JPG o de una en una.",
+      };
+    }
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error de red al subir",
+    };
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
   }
 }
 
@@ -84,17 +120,7 @@ export function InvoiceDropZone({ compact }: Props) {
           fileName: file.name,
         });
 
-        const fd = new FormData();
-        fd.set("file", file);
-        let res: Awaited<ReturnType<typeof parseInvoiceFromUpload>>;
-        try {
-          res = await withTimeout(parseInvoiceFromUpload(fd), CLIENT_TIMEOUT_MS);
-        } catch (e) {
-          failures.push(
-            `${file.name}: ${e instanceof Error ? e.message : "Error al leer"}`
-          );
-          continue;
-        }
+        const res = await parseInvoiceViaApi(file);
         if (!res.ok) {
           failures.push(`${file.name}: ${res.error}`);
           continue;
@@ -106,7 +132,7 @@ export function InvoiceDropZone({ compact }: Props) {
         });
 
         if (i < files.length - 1) {
-          await new Promise((r) => setTimeout(r, 800));
+          await new Promise((r) => setTimeout(r, 600));
         }
       }
 

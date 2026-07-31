@@ -4,13 +4,14 @@
  */
 
 export const GEMINI_DEFAULT_MODELS = [
-  "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
   "gemini-2.0-flash",
-  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
 ] as const;
 
-const FETCH_TIMEOUT_MS = 45_000;
+/** Por petición; en Vercel Hobby el techo real ~10s, en Pro más. */
+const FETCH_TIMEOUT_MS = 35_000;
 
 export function getGeminiApiKey(): string | null {
   return (
