@@ -61,8 +61,8 @@ export default async function MarketplaceIncomePage({
             Ingresos marketplace
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Amazon (VAT Tax Report CSV) y Shopify (CSV por país o captura del
-            Informe IVA) · no usan la serie W3D
+            Amazon (VAT Tax Report CSV) y Shopify (CSV por país, Informe IVA o
+            resumen del chat) · no usan la serie W3D
           </p>
         </div>
       </div>

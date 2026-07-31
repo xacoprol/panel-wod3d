@@ -100,12 +100,17 @@ export type ShopifyIvaSummaryDraft = {
   shipping: number;
   taxes: number;
   totalSales: number;
+  /** Nº de pedidos si el resumen lo indica */
+  orders?: number;
+  /** table = Informe IVA clásico; chat = resumen por texto/email */
+  reportKind?: "table" | "chat" | string;
+  notes?: string | null;
   confidence?: "high" | "medium" | "low";
 };
 
 /**
- * Convierte el Informe IVA mensual de Shopify (captura / PDF) en una fila
- * de ingreso marketplace, misma lógica que el CSV por país (base = net + envío).
+ * Convierte el Informe IVA mensual de Shopify (captura / PDF / resumen chat)
+ * en una fila de ingreso marketplace (base = net + envío, o total − IVA).
  */
 export function parseShopifyIvaSummaryDraft(
   draft: ShopifyIvaSummaryDraft,
@@ -117,13 +122,21 @@ export function parseShopifyIvaSummaryDraft(
     throw new Error("El periodo del Informe IVA no es válido (mes/año)");
   }
 
-  const netSales = round2(Number(draft.netSales) || 0);
+  let netSales = round2(Number(draft.netSales) || 0);
   const shipping = round2(Number(draft.shipping) || 0);
   const taxes = round2(Number(draft.taxes) || 0);
   const totalSales = round2(Number(draft.totalSales) || 0);
   const gross = round2(Number(draft.grossSales) || 0);
   const discounts = round2(Number(draft.discounts) || 0);
   const returns = round2(Number(draft.returns) || 0);
+  const orders = Math.max(0, Math.trunc(Number(draft.orders) || 0));
+
+  // Resumen tipo chat: solo total + IVA → base = total − IVA
+  if (!netSales && !shipping && totalSales && taxes) {
+    netSales = round2(totalSales - taxes);
+  } else if (!netSales && !shipping && totalSales && !taxes) {
+    netSales = totalSales;
+  }
 
   if (
     netSales === 0 &&
@@ -159,7 +172,7 @@ export function parseShopifyIvaSummaryDraft(
     issueDate,
     netSales,
     taxes,
-    orders: 0,
+    orders,
     sourceFile,
   });
 
@@ -168,9 +181,13 @@ export function parseShopifyIvaSummaryDraft(
     issueDate,
     externalKey,
     externalRef: `Shopify · ${label} · ${issueDate}`,
-    orderId: null,
+    orderId: orders
+      ? `${orders} pedido${orders === 1 ? "" : "s"}`
+      : null,
     sku: null,
-    description: `Ventas Shopify · ${label}`,
+    description: `Ventas Shopify · ${label}${
+      orders ? ` · ${orders} pedido${orders === 1 ? "" : "s"}` : ""
+    }`,
     transactionType: "SUMMARY",
     vatStatus,
     vatRate,
@@ -180,11 +197,15 @@ export function parseShopifyIvaSummaryDraft(
     shipToCountry: "IVA",
     notes: [
       sourceFile ? `Archivo: ${sourceFile}` : null,
+      draft.reportKind === "chat" ? "Resumen IVA chat/email Shopify" : null,
       gross ? `Gross ${gross}` : null,
       discounts ? `Discounts ${discounts}` : null,
       returns ? `Returns ${returns}` : null,
       `Net ${netSales} · Shipping ${shipping}`,
-      "Informe IVA mensual Shopify (captura)",
+      draft.notes?.trim() || null,
+      draft.reportKind === "chat"
+        ? "Resumen mensual Shopify (captura texto)"
+        : "Informe IVA mensual Shopify (captura)",
     ]
       .filter(Boolean)
       .join(" · "),

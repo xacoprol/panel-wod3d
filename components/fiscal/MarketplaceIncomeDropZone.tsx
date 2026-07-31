@@ -111,11 +111,11 @@ export function MarketplaceIncomeDropZone() {
             </span>
           ) : dragging
             ? "Suelta el archivo aquí"
-            : "Arrastra CSV o captura del Informe IVA (Shopify)"}
+            : "Arrastra CSV o captura del resumen IVA (Shopify)"}
         </p>
         <p className="mt-1 text-xs text-ink-muted">
-          Amazon: VAT Tax Report CSV · Shopify: CSV por país o imagen/PDF del
-          Informe IVA
+          Amazon: VAT Tax Report CSV · Shopify: CSV por país, Informe IVA o
+          resumen del chat/email
         </p>
         {!parsing ? (
           <p className="mt-3 text-xs font-medium text-accent">

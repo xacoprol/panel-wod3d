@@ -1,5 +1,5 @@
 /**
- * OCR del Informe IVA / resumen de ventas Shopify (captura o PDF).
+ * OCR del Informe IVA / resumen de ventas Shopify (captura, PDF o chat/email).
  */
 import {
   geminiConfigured,
@@ -73,8 +73,19 @@ function parsePeriodFromLabel(label: string): {
   year: number;
   month: number;
 } | null {
-  const m = /([A-Za-zÁÉÍÓÚáéíóúñÑ]+)\s+(\d{4})/.exec(label);
+  // «enero de 2026», «Abril 2026», «Informe IVA — Abril 2026»
+  const m =
+    /([A-Za-zÁÉÍÓÚáéíóúñÑ]+)\s+(?:de\s+)?(\d{4})/.exec(label) ||
+    /(\d{4})-(\d{1,2})/.exec(label);
   if (!m) return null;
+
+  if (/^\d{4}$/.test(m[1])) {
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    if (year && month >= 1 && month <= 12) return { year, month };
+    return null;
+  }
+
   const month =
     MONTH_ES[
       m[1]
@@ -115,7 +126,7 @@ function parseDraftFromText(text: string): ShopifyIvaSummaryDraft {
 
   if (!periodYear || periodMonth < 1 || periodMonth > 12) {
     throw new Error(
-      "No se pudo leer el mes/año del Informe IVA (ej. Abril 2026)"
+      "No se pudo leer el mes/año del Informe IVA (ej. enero de 2026)"
     );
   }
 
@@ -126,9 +137,24 @@ function parseDraftFromText(text: string): ShopifyIvaSummaryDraft {
   const shipping = parseMoney(parsed.shipping);
   const taxes = parseMoney(parsed.taxes);
   let totalSales = parseMoney(parsed.totalSales);
+  const orders = Math.max(0, Math.trunc(Number(parsed.orders) || 0));
+  const reportKindRaw = String(parsed.reportKind ?? "")
+    .toLowerCase()
+    .trim();
+  const reportKind =
+    reportKindRaw === "chat" || reportKindRaw === "table"
+      ? reportKindRaw
+      : netSales || shipping || grossSales
+        ? "table"
+        : "chat";
+  const notes = String(parsed.notes ?? "").trim() || null;
 
   if (!netSales && (grossSales || discounts || returns)) {
     netSales = round2(grossSales + discounts + returns);
+  }
+  // Chat: Total de ventas + IVA → base = total − IVA
+  if (!netSales && !shipping && totalSales) {
+    netSales = taxes ? round2(totalSales - taxes) : totalSales;
   }
   if (!totalSales) {
     totalSales = round2(netSales + shipping + taxes);
@@ -153,6 +179,9 @@ function parseDraftFromText(text: string): ShopifyIvaSummaryDraft {
     shipping,
     taxes,
     totalSales,
+    orders,
+    reportKind,
+    notes,
     confidence,
   };
 }
@@ -177,32 +206,47 @@ export async function parseShopifyIvaReportDocument(file: {
     throw new Error("El archivo supera 12 MB");
   }
 
-  const prompt = `Eres un asistente fiscal. Extrae los datos de este INFORME IVA / resumen de ventas Shopify (captura de pantalla o PDF).
+  const prompt = `Eres un asistente fiscal. Extrae los datos de un INFORME IVA / resumen de ventas de Shopify (captura, PDF o mensaje de chat/email).
 
-NO es una factura unitaria ni un CSV por país: es un resumen mensual tipo «Informe IVA — Abril 2026» con conceptos:
+Hay DOS formatos habituales:
+
+1) TABLA «Informe IVA — Abril 2026» con filas:
 Ventas brutas, Descuentos, Devoluciones, Ventas netas, Gastos de envío, IVA recaudado, Total ventas.
+
+2) RESUMEN EN TEXTO / CHAT / EMAIL, p. ej.:
+«Aquí está tu informe de IVA para enero de 2026:
+Resumen del mes
+• Total de ventas: 789,64 €
+• Total de IVA recaudado: 136,99 €
+• Número de pedidos: 29
+Desglose por pedido (opcional)…»
+En este caso NO hay ventas netas ni envío desglosados: usa totalSales e taxes (y orders). netSales/shipping = 0.
 
 Devuelve SOLO un JSON válido:
 {
+  "reportKind": "table" | "chat",
   "periodYear": 2026,
-  "periodMonth": 4,
-  "periodLabel": "Informe IVA — Abril 2026",
-  "grossSales": 452.50,
-  "discounts": -79.96,
+  "periodMonth": 1,
+  "periodLabel": "Informe IVA enero 2026",
+  "grossSales": 0,
+  "discounts": 0,
   "returns": 0,
-  "netSales": 372.54,
-  "shipping": 55.27,
-  "taxes": 89.83,
-  "totalSales": 517.64,
+  "netSales": 0,
+  "shipping": 0,
+  "taxes": 136.99,
+  "totalSales": 789.64,
+  "orders": 29,
+  "notes": "devoluciones u observaciones relevantes, o null",
   "confidence": "high" | "medium" | "low"
 }
 
 Reglas:
-- Importes en euros con punto decimal (452,50 → 452.50). Descuentos suelen ser negativos.
-- periodMonth: 1–12. Si el título dice «Abril 2026», periodYear=2026, periodMonth=4.
-- netSales = Ventas netas. shipping = Gastos de envío. taxes = IVA recaudado.
-- totalSales = Total ventas.
-- Si falta un concepto, 0. No inventes cifras.
+- Importes en euros con punto decimal (789,64 → 789.64). Descuentos/devoluciones pueden ser negativos.
+- periodMonth 1–12. «enero de 2026» → periodYear=2026, periodMonth=1.
+- table: netSales=Ventas netas, shipping=Gastos de envío, taxes=IVA recaudado, totalSales=Total ventas.
+- chat: totalSales=Total de ventas, taxes=Total de IVA recaudado, orders=Número de pedidos; gross/net/shipping=0 si no aparecen.
+- Si menciona una devolución (importe negativo), anótala en notes; no inventes líneas extra.
+- No inventes cifras. Si falta un campo, 0 o null.
 - Archivo: ${file.fileName}`;
 
   const base64 = file.buffer.toString("base64");
