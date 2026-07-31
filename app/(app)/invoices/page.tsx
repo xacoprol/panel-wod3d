@@ -13,6 +13,7 @@ import {
   LiveSearch,
   LiveSelect,
 } from "@/components/ui/LiveSearch";
+import { InvoiceDropZone } from "@/components/invoices/InvoiceDropZone";
 import type { Prisma } from "@prisma/client";
 
 function primaryVatRate(rates: number[]): number | null {
@@ -138,6 +139,8 @@ export default async function InvoicesPage({
           Nueva factura
         </Link>
       </div>
+
+      <InvoiceDropZone />
 
       <div className="flex flex-wrap items-end gap-2">
         <Suspense fallback={<InlineSkeleton />}>

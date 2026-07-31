@@ -8,6 +8,11 @@ import { requireAuth } from "@/lib/session";
 import { calculateDocument, type LineInput } from "@/lib/calculations";
 import { allocateInvoiceNumber, syncInvoiceSeriesNextNumber } from "@/lib/numbering";
 import {
+  findDuplicateIssuedInvoice,
+  resolveHistoricalInvoiceNumber,
+  resolveOrCreateClient,
+} from "@/lib/invoice-import";
+import {
   paymentTotals,
   syncInvoicePaymentStatus,
 } from "@/lib/invoice-payments";
@@ -321,4 +326,173 @@ export async function deleteInvoices(ids: string[]) {
   revalidatePath("/invoices");
   revalidatePath("/dashboard");
   return { deleted: idList.length };
+}
+
+export type HistoricalInvoiceDraftInput = {
+  fullNumber: string;
+  seriesId?: string | null;
+  issueDate: string;
+  dueDate?: string | null;
+  clientName: string;
+  clientNif?: string | null;
+  clientCountryCode?: string | null;
+  clientAddressStreet?: string | null;
+  clientAddressCity?: string | null;
+  clientAddressProvince?: string | null;
+  clientAddressZip?: string | null;
+  clientAddressCountry?: string | null;
+  clientEmail?: string | null;
+  description?: string | null;
+  lines: LineInput[];
+  irpfRate?: number;
+  vatOperationType?: string;
+  paymentMethod?: string | null;
+  notes?: string | null;
+  /** Marcar como cobrada e insertar cobro por el total */
+  markAsPaid?: boolean;
+};
+
+export type HistoricalInvoiceResult =
+  | { ok: true; id: string; fullNumber: string; clientCreated: boolean }
+  | { ok: false; error: string; duplicateId?: string };
+
+/**
+ * Alta de factura emitida histórica: conserva el nº original,
+ * no usa allocateInvoiceNumber, y sincroniza nextNumber de la serie.
+ */
+export async function createHistoricalInvoice(
+  data: HistoricalInvoiceDraftInput
+): Promise<HistoricalInvoiceResult> {
+  await requireAuth();
+
+  try {
+    const fullNumber = String(data.fullNumber ?? "").trim();
+    if (!fullNumber) {
+      return { ok: false, error: "El número de factura es obligatorio" };
+    }
+    if (!data.clientName?.trim()) {
+      return { ok: false, error: "El cliente es obligatorio" };
+    }
+
+    const vatOperationType = parseVatOperationType(data.vatOperationType);
+    const lines = applyVatOperationToLines(
+      (data.lines ?? []).filter((l) => l.description?.trim()),
+      vatOperationType
+    );
+    if (!lines.length) {
+      return { ok: false, error: "Añade al menos una línea" };
+    }
+
+    const irpfRate = Number(data.irpfRate) || 0;
+    const totals = calculateDocument(lines, irpfRate);
+    const issueDate = new Date(data.issueDate);
+    if (Number.isNaN(issueDate.getTime())) {
+      return { ok: false, error: "Fecha no válida" };
+    }
+    const dueRaw = data.dueDate?.trim();
+    const dueDate = dueRaw ? new Date(dueRaw) : null;
+
+    const num = await resolveHistoricalInvoiceNumber(
+      prisma,
+      fullNumber,
+      data.seriesId
+    );
+
+    const dup = await findDuplicateIssuedInvoice(prisma, {
+      fullNumber: num.fullNumber,
+      seriesId: num.seriesId,
+      number: num.number,
+    });
+    if (dup) {
+      return {
+        ok: false,
+        error: `Ya existe la factura ${dup.fullNumber}`,
+        duplicateId: dup.id,
+      };
+    }
+
+    const { clientId, created: clientCreated } = await resolveOrCreateClient(
+      prisma,
+      {
+        name: data.clientName,
+        nif: data.clientNif,
+        countryCode: data.clientCountryCode,
+        addressStreet: data.clientAddressStreet,
+        addressCity: data.clientAddressCity,
+        addressProvince: data.clientAddressProvince,
+        addressZip: data.clientAddressZip,
+        addressCountry: data.clientAddressCountry,
+        email: data.clientEmail,
+      }
+    );
+
+    const lastInSeries = await prisma.invoice.findFirst({
+      where: { seriesId: num.seriesId },
+      orderBy: { number: "desc" },
+    });
+
+    const noteParts = [
+      data.notes?.trim() || null,
+      data.description?.trim()
+        ? `Import histórico: ${data.description.trim()}`
+        : "Import histórico OCR",
+    ].filter(Boolean);
+
+    const markAsPaid = Boolean(data.markAsPaid);
+    const invoice = await prisma.invoice.create({
+      data: {
+        seriesId: num.seriesId,
+        seriesPrefix: num.seriesPrefix,
+        number: num.number,
+        fullNumber: num.fullNumber,
+        clientId,
+        issueDate,
+        dueDate,
+        status: markAsPaid ? "PAGADA" : "PENDIENTE",
+        paymentMethod:
+          data.paymentMethod?.trim() || "Transferencia",
+        notes: noteParts.join(" · ") || null,
+        vatOperationType,
+        subtotal: totals.subtotal,
+        vatAmount: totals.vatAmount,
+        irpfRate: totals.irpfRate,
+        irpfAmount: totals.irpfAmount,
+        total: totals.total,
+        previousInvoiceId: lastInSeries?.id ?? null,
+      },
+    });
+    await createInvoiceLines(invoice.id, totals.lines);
+
+    if (markAsPaid && totals.total > 0) {
+      await prisma.invoicePayment.create({
+        data: {
+          invoiceId: invoice.id,
+          amount: totals.total,
+          paidAt: issueDate,
+          method: data.paymentMethod?.trim() || "Transferencia",
+          notes: "Cobro al importar histórico",
+        },
+      });
+    }
+
+    await syncInvoiceSeriesNextNumber(prisma, num.seriesId);
+
+    revalidatePath("/invoices");
+    revalidatePath("/dashboard");
+    revalidatePath("/stats");
+    revalidatePath("/clients");
+
+    return {
+      ok: true,
+      id: invoice.id,
+      fullNumber: invoice.fullNumber,
+      clientCreated,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error ? err.message : "No se pudo importar la factura",
+    };
+  }
 }
