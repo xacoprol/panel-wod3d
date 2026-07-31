@@ -15,7 +15,8 @@ export default function MarketplaceIncomeImportPage() {
           Revisar importación
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Comprueba bases con IVA y sin IVA antes de guardar en Fiscal.
+          Comprueba bases e IVA antes de guardar. En Shopify puedes ajustar la
+          fecha del periodo.
         </p>
       </div>
       <MarketplaceIncomeImportReview />

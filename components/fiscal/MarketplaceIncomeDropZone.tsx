@@ -95,7 +95,7 @@ export function MarketplaceIncomeDropZone() {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,application/pdf,image/jpeg,image/png,image/webp,image/gif"
           className="sr-only"
           disabled={parsing}
           onChange={(e) => {
@@ -110,11 +110,12 @@ export function MarketplaceIncomeDropZone() {
               Leyendo informe…
             </span>
           ) : dragging
-            ? "Suelta el CSV aquí"
-            : "Arrastra el CSV de Amazon o Shopify"}
+            ? "Suelta el archivo aquí"
+            : "Arrastra CSV o captura del Informe IVA (Shopify)"}
         </p>
         <p className="mt-1 text-xs text-ink-muted">
-          Amazon: VAT Tax Report · Shopify: ventas por país de facturación
+          Amazon: VAT Tax Report CSV · Shopify: CSV por país o imagen/PDF del
+          Informe IVA
         </p>
         {!parsing ? (
           <p className="mt-3 text-xs font-medium text-accent">

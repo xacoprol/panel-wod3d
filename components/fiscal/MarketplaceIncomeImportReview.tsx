@@ -276,7 +276,8 @@ export function MarketplaceIncomeImportReview() {
     return (
       <div className="card-panel space-y-3 p-6 text-sm">
         <p className="text-ink-muted">
-          No hay líneas en la cola. Sube un CSV desde ingresos marketplace.
+          No hay líneas en la cola. Sube un CSV o captura desde ingresos
+          marketplace.
         </p>
         <Link href="/fiscal/income" className="text-accent underline">
           Volver

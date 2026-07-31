@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
 import { parseMarketplaceIncomeCsv } from "@/lib/marketplace-income-parse";
+import {
+  geminiConfigured,
+  parseShopifyIvaReportDocument,
+} from "@/lib/gemini-shopify-report";
+import { parseShopifyIvaSummaryDraft } from "@/lib/shopify-sales-report";
 import type { AmazonTaxReportRow } from "@/lib/amazon-tax-report";
 
 export type ParseMarketplaceIncomeResult =
@@ -26,6 +31,28 @@ export type ParseMarketplaceIncomeResult =
     }
   | { ok: false; error: string };
 
+const IMAGE_MIME = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+function isCsvFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".csv")) return true;
+  const t = (file.type || "").toLowerCase();
+  return t.includes("csv") || t.includes("text/plain") || t.includes("text/csv");
+}
+
+function isImageOrPdf(file: File): boolean {
+  const name = file.name.toLowerCase();
+  if (/\.(pdf|png|jpe?g|webp|gif)$/i.test(name)) return true;
+  const mime = (file.type || "").split(";")[0].trim().toLowerCase();
+  return IMAGE_MIME.has(mime);
+}
+
 export async function parseMarketplaceIncomeUpload(
   formData: FormData
 ): Promise<ParseMarketplaceIncomeResult> {
@@ -33,19 +60,53 @@ export async function parseMarketplaceIncomeUpload(
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Selecciona un CSV del informe" };
-  }
-
-  const name = file.name.toLowerCase();
-  if (
-    !name.endsWith(".csv") &&
-    file.type &&
-    !file.type.includes("csv") &&
-    !file.type.includes("text")
-  ) {
     return {
       ok: false,
-      error: "Sube un CSV (Amazon VAT Tax Report o Shopify por país).",
+      error: "Selecciona un CSV o una captura del Informe IVA de Shopify",
+    };
+  }
+
+  // Captura / PDF del Informe IVA Shopify
+  if (isImageOrPdf(file) && !isCsvFile(file)) {
+    if (!geminiConfigured()) {
+      return {
+        ok: false,
+        error:
+          "Falta GEMINI_API_KEY para leer capturas. Usa el CSV o configura la clave.",
+      };
+    }
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const draft = await parseShopifyIvaReportDocument({
+        buffer,
+        mimeType: file.type || "application/octet-stream",
+        fileName: file.name,
+      });
+      const parsed = parseShopifyIvaSummaryDraft(draft, file.name);
+      return {
+        ok: true,
+        channel: "SHOPIFY",
+        needsPeriodDate: true,
+        rows: parsed.rows,
+        summary: parsed.summary,
+        sourceFile: file.name,
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        error:
+          e instanceof Error
+            ? e.message
+            : "No se pudo leer el Informe IVA. Prueba con otra captura o el CSV.",
+      };
+    }
+  }
+
+  if (!isCsvFile(file)) {
+    return {
+      ok: false,
+      error:
+        "Sube un CSV (Amazon / Shopify por país) o una imagen/PDF del Informe IVA de Shopify.",
     };
   }
 
