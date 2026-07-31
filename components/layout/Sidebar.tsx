@@ -392,6 +392,12 @@ export function Sidebar({
             priority
           />
         </Link>
+        <Link
+          href="/invoices/new"
+          className="btn-primary shrink-0 px-2.5 py-1.5 text-xs"
+        >
+          Factura
+        </Link>
         {signOutSlot ? <div className="shrink-0">{signOutSlot}</div> : null}
       </div>
 

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { AppTopBar } from "@/components/layout/AppTopBar";
 import { NavigationProgress } from "@/components/ui/NavigationProgress";
 import { signOut } from "@/lib/auth";
 
@@ -27,7 +28,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireAuth();
+  const session = await requireAuth();
   let companyName = "";
   try {
     const settings = await prisma.companySettings.findFirst();
@@ -36,6 +37,9 @@ export default async function AppLayout({
   } catch {
     companyName = "";
   }
+
+  const userLabel =
+    session.user?.name?.trim() || session.user?.email?.trim() || null;
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
@@ -47,9 +51,10 @@ export default async function AppLayout({
         signOutSlot={<SignOutForm className="btn-ghost px-2 py-1 text-xs" />}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="hidden items-center justify-end border-b border-line px-6 py-3 lg:flex">
-          <SignOutForm />
-        </header>
+        <AppTopBar
+          userLabel={userLabel}
+          signOutSlot={<SignOutForm className="btn-ghost px-2 py-1.5 text-xs" />}
+        />
         <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
           {children}
         </main>
@@ -57,4 +62,3 @@ export default async function AppLayout({
     </div>
   );
 }
-
