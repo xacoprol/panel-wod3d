@@ -4,8 +4,10 @@ import {
   buildFiscalPeriodSummary,
   parseFiscalPeriod,
 } from "@/lib/fiscal";
+import { getPresentedFiling } from "@/lib/fiscal-filings";
 import { FiscalPeriodNav } from "@/components/fiscal/FiscalPeriodNav";
 import { ModeloDraft } from "@/components/fiscal/ModeloDraft";
+import { FilingCompare } from "@/components/fiscal/FilingCompare";
 
 export default async function Modelo130Page({
   searchParams,
@@ -14,8 +16,11 @@ export default async function Modelo130Page({
 }) {
   const sp = await searchParams;
   const { year, quarter } = parseFiscalPeriod(sp);
-  const summary = await buildFiscalPeriodSummary(year, quarter);
-  const settings = await prisma.companySettings.findFirst();
+  const [summary, presented, settings] = await Promise.all([
+    buildFiscalPeriodSummary(year, quarter),
+    getPresentedFiling("130", year, quarter),
+    prisma.companySettings.findFirst(),
+  ]);
   const regime = settings?.fiscalRegime ?? "130";
 
   return (
@@ -42,6 +47,11 @@ export default async function Modelo130Page({
           aplica.
         </p>
       ) : null}
+      <FilingCompare
+        modelLabel="130"
+        draftResult={summary.modelo130.result}
+        presented={presented}
+      />
       <ModeloDraft title="Casillas orientativas" model="130" summary={summary} />
       <p className="text-xs text-ink-muted">
         Ingresos = bases de facturas emitidas (sin IVA). Gastos = bases de

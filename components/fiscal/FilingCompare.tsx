@@ -1,0 +1,121 @@
+import Link from "next/link";
+import { formatCurrency } from "@/lib/calculations";
+import type { FilingBox } from "@/lib/gemini-fiscal-filing";
+
+type Props = {
+  modelLabel: string;
+  draftResult: number;
+  presented: {
+    result: number;
+    boxes: FilingBox[];
+    sourceFileName: string | null;
+    notes: string | null;
+  } | null;
+  filingsHref?: string;
+};
+
+export function FilingCompare({
+  modelLabel,
+  draftResult,
+  presented,
+  filingsHref = "/fiscal/filings",
+}: Props) {
+  if (!presented) {
+    return (
+      <section className="card-panel space-y-2 p-5">
+        <h2 className="form-section-title">Presentado (gestoría)</h2>
+        <p className="text-sm text-ink-muted">
+          Aún no hay un {modelLabel} presentado guardado para este periodo.{" "}
+          <Link href={filingsHref} className="text-accent underline">
+            Subir modelo
+          </Link>
+        </p>
+      </section>
+    );
+  }
+
+  const diff = Math.round((presented.result - draftResult + Number.EPSILON) * 100) / 100;
+  const absDiff = Math.abs(diff);
+
+  return (
+    <section className="card-panel space-y-4 p-5">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="form-section-title">Presentado vs borrador</h2>
+          <p className="form-section-hint">
+            Oficial guardado
+            {presented.sourceFileName
+              ? ` · ${presented.sourceFileName}`
+              : ""}
+          </p>
+        </div>
+        <Link href={filingsHref} className="text-xs text-accent hover:underline">
+          Ver presentados
+        </Link>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-line/60 p-3">
+          <p className="text-xs text-ink-muted">Borrador panel</p>
+          <p className="mt-1 font-mono text-lg font-semibold">
+            {formatCurrency(draftResult)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-line/60 p-3">
+          <p className="text-xs text-ink-muted">Presentado</p>
+          <p className="mt-1 font-mono text-lg font-semibold">
+            {formatCurrency(presented.result)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-line/60 p-3">
+          <p className="text-xs text-ink-muted">Diferencia</p>
+          <p
+            className={`mt-1 font-mono text-lg font-semibold ${
+              absDiff < 0.05
+                ? "text-success"
+                : "text-warning"
+            }`}
+          >
+            {absDiff < 0.05
+              ? "Cuadra"
+              : `${diff > 0 ? "+" : "−"}${formatCurrency(absDiff)}`}
+          </p>
+        </div>
+      </div>
+
+      {presented.boxes.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-line text-xs uppercase tracking-wide text-ink-muted">
+              <tr>
+                <th className="px-2 py-2 text-left font-medium">Casilla</th>
+                <th className="px-2 py-2 text-left font-medium">Concepto</th>
+                <th className="px-2 py-2 text-right font-medium">Presentado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {presented.boxes.map((b, i) => (
+                <tr
+                  key={`${b.code}-${i}`}
+                  className="border-b border-line/50"
+                >
+                  <td className="px-2 py-2 font-mono text-ink-muted">
+                    {b.code}
+                  </td>
+                  <td className="px-2 py-2">{b.label}</td>
+                  <td className="px-2 py-2 text-right font-mono">
+                    {formatCurrency(b.value)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {presented.notes ? (
+        <p className="text-xs text-ink-muted">{presented.notes}</p>
+      ) : null}
+    </section>
+  );
+}

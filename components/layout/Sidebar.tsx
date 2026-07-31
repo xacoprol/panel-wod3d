@@ -129,6 +129,7 @@ const NAV: NavItem[] = [
       { href: "/fiscal/303", label: "Modelo 303" },
       { href: "/fiscal/130", label: "Modelo 130" },
       { href: "/fiscal/390", label: "Modelo 390" },
+      { href: "/fiscal/filings", label: "Presentados" },
       { href: "/fiscal/annual", label: "Resumen anual" },
     ],
   },

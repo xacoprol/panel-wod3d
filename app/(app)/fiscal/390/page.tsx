@@ -5,6 +5,8 @@ import {
   buildFiscalYearSummary,
   parseFiscalYear,
 } from "@/lib/fiscal";
+import { getPresentedFiling } from "@/lib/fiscal-filings";
+import { FilingCompare } from "@/components/fiscal/FilingCompare";
 
 export default async function Modelo390Page({
   searchParams,
@@ -15,8 +17,9 @@ export default async function Modelo390Page({
   const year = parseFiscalYear(sp);
   const nowY = new Date().getFullYear();
 
-  const [summary, invBounds, mktBounds] = await Promise.all([
+  const [summary, presented, invBounds, mktBounds] = await Promise.all([
     buildFiscalYearSummary(year),
+    getPresentedFiling("390", year, null),
     prisma.invoice.aggregate({
       _min: { issueDate: true },
       _max: { issueDate: true },
@@ -88,6 +91,12 @@ export default async function Modelo390Page({
         . Copia estas cifras en la sede AEAT; las numeraciones de casilla son
         orientativas.
       </p>
+
+      <FilingCompare
+        modelLabel="390"
+        draftResult={draft.result}
+        presented={presented}
+      />
 
       {missingExpenses ? (
         <p className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">

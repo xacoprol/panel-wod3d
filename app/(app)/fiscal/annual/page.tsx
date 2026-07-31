@@ -5,6 +5,11 @@ import {
   buildFiscalYearSummary,
   parseFiscalYear,
 } from "@/lib/fiscal";
+import {
+  getPresentedFiling,
+  listPresentedForYear,
+} from "@/lib/fiscal-filings";
+import { FilingCompare } from "@/components/fiscal/FilingCompare";
 
 export default async function FiscalAnnualPage({
   searchParams,
@@ -15,18 +20,21 @@ export default async function FiscalAnnualPage({
   const year = parseFiscalYear(sp);
   const nowY = new Date().getFullYear();
 
-  const [summary, invBounds, mktBounds, settings] = await Promise.all([
-    buildFiscalYearSummary(year),
-    prisma.invoice.aggregate({
-      _min: { issueDate: true },
-      _max: { issueDate: true },
-    }),
-    prisma.marketplaceIncome.aggregate({
-      _min: { issueDate: true },
-      _max: { issueDate: true },
-    }),
-    prisma.companySettings.findFirst(),
-  ]);
+  const [summary, presented390, yearFilings, invBounds, mktBounds, settings] =
+    await Promise.all([
+      buildFiscalYearSummary(year),
+      getPresentedFiling("390", year, null),
+      listPresentedForYear(year),
+      prisma.invoice.aggregate({
+        _min: { issueDate: true },
+        _max: { issueDate: true },
+      }),
+      prisma.marketplaceIncome.aggregate({
+        _min: { issueDate: true },
+        _max: { issueDate: true },
+      }),
+      prisma.companySettings.findFirst(),
+    ]);
 
   const regime = settings?.fiscalRegime ?? "130";
   const yearsFromDates = [
@@ -41,6 +49,17 @@ export default async function FiscalAnnualPage({
   for (let y = maxY; y >= Math.min(minY, nowY - 2); y--) years.push(y);
 
   const missingExpenses = summary.expenses.count === 0;
+
+  const presented303 = new Map(
+    yearFilings
+      .filter((f) => f.modelType === "303" && f.quarter != null)
+      .map((f) => [f.quarter!, Number(f.result)])
+  );
+  const presented130 = new Map(
+    yearFilings
+      .filter((f) => f.modelType === "130" && f.quarter != null)
+      .map((f) => [f.quarter!, Number(f.result)])
+  );
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -89,7 +108,16 @@ export default async function FiscalAnnualPage({
         <Link href={`/fiscal/390?year=${year}`} className="btn-primary text-sm">
           Abrir borrador Modelo 390
         </Link>
+        <Link href="/fiscal/filings" className="btn-secondary text-sm">
+          Subir presentados
+        </Link>
       </div>
+
+      <FilingCompare
+        modelLabel="390"
+        draftResult={summary.modelo390.result}
+        presented={presented390}
+      />
 
       {missingExpenses ? (
         <p className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
@@ -159,8 +187,10 @@ export default async function FiscalAnnualPage({
               <th className="px-4 py-2 text-left font-medium">Periodo</th>
               <th className="px-4 py-2 text-right font-medium">Ingresos</th>
               <th className="px-4 py-2 text-right font-medium">Gastos</th>
-              <th className="px-4 py-2 text-right font-medium">303</th>
-              <th className="px-4 py-2 text-right font-medium">130</th>
+              <th className="px-4 py-2 text-right font-medium">303 borrador</th>
+              <th className="px-4 py-2 text-right font-medium">303 present.</th>
+              <th className="px-4 py-2 text-right font-medium">130 borrador</th>
+              <th className="px-4 py-2 text-right font-medium">130 present.</th>
             </tr>
           </thead>
           <tbody>
@@ -181,6 +211,11 @@ export default async function FiscalAnnualPage({
                     {formatCurrency(q.modelo303Result)}
                   </Link>
                 </td>
+                <td className="px-4 py-2 text-right font-mono text-ink-muted">
+                  {presented303.has(q.quarter)
+                    ? formatCurrency(presented303.get(q.quarter)!)
+                    : "—"}
+                </td>
                 <td className="px-4 py-2 text-right font-mono">
                   <Link
                     href={`/fiscal/130?year=${year}&q=${q.quarter}`}
@@ -188,6 +223,11 @@ export default async function FiscalAnnualPage({
                   >
                     {formatCurrency(q.modelo130Result)}
                   </Link>
+                </td>
+                <td className="px-4 py-2 text-right font-mono text-ink-muted">
+                  {presented130.has(q.quarter)
+                    ? formatCurrency(presented130.get(q.quarter)!)
+                    : "—"}
                 </td>
               </tr>
             ))}
@@ -202,8 +242,18 @@ export default async function FiscalAnnualPage({
               <td className="px-4 py-2 text-right font-mono">
                 {formatCurrency(summary.ivaNetYear)}
               </td>
+              <td className="px-4 py-2 text-right font-mono text-ink-muted">
+                {formatCurrency(
+                  [...presented303.values()].reduce((s, v) => s + v, 0)
+                )}
+              </td>
               <td className="px-4 py-2 text-right font-mono">
                 {formatCurrency(summary.irpfPaymentsYear)}
+              </td>
+              <td className="px-4 py-2 text-right font-mono text-ink-muted">
+                {formatCurrency(
+                  [...presented130.values()].reduce((s, v) => s + v, 0)
+                )}
               </td>
             </tr>
           </tbody>

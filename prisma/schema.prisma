@@ -311,6 +311,29 @@ model Expense {
   @@index([invoiceNumber])
 }
 
+// ─── Fiscal: modelos presentados (gestoría / AEAT) ───────────────────────────
+
+model FiscalFiling {
+  id             String    @id @default(cuid())
+  /// Unique key e.g. "303:2026:1" | "130:2026:2" | "390:2025"
+  periodKey      String    @unique
+  modelType      String // 303 | 130 | 390
+  year           Int
+  quarter        Int? // 1–4; null for annual (390)
+  filedAt        DateTime?
+  result         Decimal   @default(0) // resultado a ingresar / clave
+  boxes          Json // [{ code, label, value }]
+  rawExtract     Json?
+  sourceFileName String?
+  notes          String?
+  confidence     String    @default("medium") // high | medium | low
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([modelType, year])
+  @@index([year, quarter])
+}
+
 // ─── Fiscal: ingresos marketplace (Amazon / Shopify) ─────────────────────────
 
 model MarketplaceIncome {

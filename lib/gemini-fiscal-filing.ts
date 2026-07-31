@@ -1,0 +1,360 @@
+/**
+ * OCR de modelos fiscales presentados (303 / 130 / 390) vía Gemini.
+ */
+import { geminiConfigured } from "@/lib/gemini-expense";
+
+export type FiscalModelType = "303" | "130" | "390";
+
+export type FilingBox = {
+  code: string;
+  label: string;
+  value: number;
+};
+
+export type ParsedFiscalFilingDraft = {
+  modelType: FiscalModelType;
+  year: number;
+  quarter: number | null;
+  filedAt: string | null; // YYYY-MM-DD
+  result: number;
+  boxes: FilingBox[];
+  notes: string | null;
+  confidence: "high" | "medium" | "low";
+  /** Respuesta cruda normalizada para auditoría */
+  rawExtract: Record<string, unknown>;
+};
+
+const ALLOWED_MIME = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+const MAX_BYTES = 12 * 1024 * 1024;
+
+const DEFAULT_MODELS = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+];
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function getGeminiApiKey(): string | null {
+  return (
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim() ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
+    null
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function rankModelName(name: string): number {
+  const n = name.toLowerCase();
+  if (n.includes("flash-lite")) return 0;
+  if (n.includes("flash") && !n.includes("pro")) return 1;
+  if (n.includes("pro")) return 3;
+  return 2;
+}
+
+async function listGenerateContentModels(apiKey: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${encodeURIComponent(apiKey)}`
+    );
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      models?: Array<{
+        name?: string;
+        supportedGenerationMethods?: string[];
+      }>;
+    };
+    const names = (json.models ?? [])
+      .filter((m) =>
+        (m.supportedGenerationMethods ?? []).includes("generateContent")
+      )
+      .map((m) => (m.name ?? "").replace(/^models\//, ""))
+      .filter((n) => n && !n.includes("embed") && !n.includes("imagen"));
+    names.sort(
+      (a, b) => rankModelName(a) - rankModelName(b) || a.localeCompare(b)
+    );
+    return names;
+  } catch {
+    return [];
+  }
+}
+
+async function getModelCandidates(apiKey: string): Promise<string[]> {
+  const preferred = process.env.GEMINI_MODEL?.trim();
+  const listed = await listGenerateContentModels(apiKey);
+  const base = listed.length ? listed : DEFAULT_MODELS;
+  const list = preferred
+    ? [preferred, ...base.filter((m) => m !== preferred)]
+    : [...base];
+  return [...new Set(list)].slice(0, 6);
+}
+
+type GeminiHttpResult =
+  | { ok: true; text: string }
+  | { ok: false; status: number; body: string };
+
+async function callGemini(opts: {
+  apiKey: string;
+  model: string;
+  mime: string;
+  base64: string;
+  prompt: string;
+}): Promise<GeminiHttpResult> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model)}:generateContent?key=${encodeURIComponent(opts.apiKey)}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: opts.prompt },
+            {
+              inline_data: {
+                mime_type: opts.mime,
+                data: opts.base64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return { ok: false, status: res.status, body };
+  }
+
+  const json = (await res.json()) as {
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> };
+    }>;
+  };
+
+  const text =
+    json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ??
+    "";
+  return { ok: true, text };
+}
+
+export function fiscalFilingPeriodKey(
+  modelType: FiscalModelType,
+  year: number,
+  quarter: number | null
+): string {
+  if (modelType === "390" || quarter == null) {
+    return `${modelType}:${year}`;
+  }
+  return `${modelType}:${year}:${quarter}`;
+}
+
+export { geminiConfigured };
+
+function normalizeModelType(raw: unknown): FiscalModelType {
+  const s = String(raw ?? "").replace(/\D/g, "");
+  if (s === "130") return "130";
+  if (s === "390") return "390";
+  return "303";
+}
+
+function normalizeDate(raw: unknown): string | null {
+  if (raw == null || raw === "") return null;
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(s);
+  if (m) {
+    return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function parseBoxes(raw: unknown): FilingBox[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((b) => {
+      const o = b as Record<string, unknown>;
+      return {
+        code: String(o.code ?? "—").trim() || "—",
+        label: String(o.label ?? "").trim() || "Casilla",
+        value: round2(Number(o.value) || 0),
+      };
+    })
+    .filter((b) => b.label);
+}
+
+function parseDraftFromText(text: string): ParsedFiscalFilingDraft {
+  if (!text.trim()) {
+    throw new Error("Gemini no devolvió datos. Prueba con otro PDF/imagen.");
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error("No se pudo interpretar la respuesta de Gemini");
+    parsed = JSON.parse(m[0]) as Record<string, unknown>;
+  }
+
+  const modelType = normalizeModelType(parsed.modelType);
+  const yearRaw = parseInt(String(parsed.year ?? ""), 10);
+  const year =
+    Number.isFinite(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100
+      ? yearRaw
+      : new Date().getFullYear();
+
+  let quarter: number | null = null;
+  if (modelType !== "390") {
+    const q = parseInt(String(parsed.quarter ?? ""), 10);
+    quarter = q === 1 || q === 2 || q === 3 || q === 4 ? q : 1;
+  }
+
+  const boxes = parseBoxes(parsed.boxes);
+  let result = round2(Number(parsed.result) || 0);
+  if (!result && boxes.length) {
+    const last = boxes[boxes.length - 1];
+    result = last.value;
+  }
+
+  const confidenceRaw = String(parsed.confidence ?? "medium").toLowerCase();
+  const confidence =
+    confidenceRaw === "high" || confidenceRaw === "low"
+      ? confidenceRaw
+      : "medium";
+
+  return {
+    modelType,
+    year,
+    quarter,
+    filedAt: normalizeDate(parsed.filedAt),
+    result,
+    boxes,
+    notes: String(parsed.notes ?? "").trim() || null,
+    confidence,
+    rawExtract: parsed,
+  };
+}
+
+export async function parseFiscalFilingDocument(file: {
+  buffer: Buffer;
+  mimeType: string;
+  fileName: string;
+}): Promise<ParsedFiscalFilingDraft> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error(
+      "Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en las variables de entorno"
+    );
+  }
+
+  const mime = file.mimeType.split(";")[0].trim().toLowerCase();
+  if (!ALLOWED_MIME.has(mime)) {
+    throw new Error("Formato no soportado. Usa PDF, JPG, PNG o WebP");
+  }
+  if (file.buffer.byteLength > MAX_BYTES) {
+    throw new Error("El archivo supera 12 MB");
+  }
+
+  const prompt = `Eres un asistente fiscal español. El documento es un modelo tributario YA PRESENTADO (AEAT / gestoría): Modelo 303 (IVA trimestral), Modelo 130 (IRPF fraccionado) o Modelo 390 (resumen anual IVA).
+
+Devuelve SOLO un JSON válido:
+{
+  "modelType": "303" | "130" | "390",
+  "year": 2026,
+  "quarter": 1,
+  "filedAt": "YYYY-MM-DD" o null,
+  "result": 0,
+  "boxes": [
+    { "code": "45", "label": "descripción corta", "value": 0 }
+  ],
+  "notes": "dudas o null",
+  "confidence": "high" | "medium" | "low"
+}
+
+Reglas:
+- modelType: detecta por título/cabecera (303, 130, 390). Si es resumen anual de IVA → 390.
+- year: ejercicio fiscal del modelo (no el año de presentación si difiere). Ej. 390 de 2025 presentado en ene-2026 → year=2025.
+- quarter: solo para 303 y 130 (1–4). Para 390 usa null.
+- result: importe a ingresar / resultado de la liquidación (303 casilla resultado; 130 resultado; 390 resultado liquidación anual o suma). Número, puede ser negativo si a compensar/devolver.
+- boxes: las casillas numéricas más relevantes (base, cuota, resultado). Importes en euros con punto decimal. Incluye al menos el resultado.
+- No inventes casillas que no aparezcan; si el PDF es un justificante resumido, extrae lo que haya.
+- filedAt: fecha de presentación si aparece; si no, null.
+- Archivo de referencia: ${file.fileName}`;
+
+  const base64 = file.buffer.toString("base64");
+  const models = await getModelCandidates(apiKey);
+  let last429 = false;
+  let last404 = false;
+  let lastError = "";
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await sleep(1500 * attempt);
+      const result = await callGemini({
+        apiKey,
+        model,
+        mime,
+        base64,
+        prompt,
+      });
+
+      if (result.ok) {
+        return parseDraftFromText(result.text);
+      }
+
+      lastError = result.body.slice(0, 200);
+      if (result.status === 429) {
+        last429 = true;
+        continue;
+      }
+      if (result.status === 404) {
+        last404 = true;
+        break;
+      }
+      if (result.status === 400 || result.status === 403) {
+        throw new Error(
+          `Gemini rechazó la petición (${result.status}). Revisa la API key${lastError ? `: ${lastError}` : "."}`
+        );
+      }
+      throw new Error(
+        `Error Gemini ${result.status}${lastError ? `: ${lastError}` : ""}`
+      );
+    }
+  }
+
+  if (last429) {
+    throw new Error(
+      "Límite de Gemini agotado. Espera un minuto o activa facturación en Google AI Studio."
+    );
+  }
+  if (last404) {
+    throw new Error(
+      "Ningún modelo Gemini disponible. Define GEMINI_MODEL en el entorno."
+    );
+  }
+  throw new Error(
+    `No se pudo usar Gemini${lastError ? `: ${lastError}` : "."}`
+  );
+}

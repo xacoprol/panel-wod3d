@@ -3,8 +3,10 @@ import {
   buildFiscalPeriodSummary,
   parseFiscalPeriod,
 } from "@/lib/fiscal";
+import { getPresentedFiling } from "@/lib/fiscal-filings";
 import { FiscalPeriodNav } from "@/components/fiscal/FiscalPeriodNav";
 import { ModeloDraft } from "@/components/fiscal/ModeloDraft";
+import { FilingCompare } from "@/components/fiscal/FilingCompare";
 
 export default async function Modelo303Page({
   searchParams,
@@ -13,7 +15,10 @@ export default async function Modelo303Page({
 }) {
   const sp = await searchParams;
   const { year, quarter } = parseFiscalPeriod(sp);
-  const summary = await buildFiscalPeriodSummary(year, quarter);
+  const [summary, presented] = await Promise.all([
+    buildFiscalPeriodSummary(year, quarter),
+    getPresentedFiling("303", year, quarter),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -32,6 +37,11 @@ export default async function Modelo303Page({
         year={year}
         quarter={quarter}
         basePath="/fiscal/303"
+      />
+      <FilingCompare
+        modelLabel="303"
+        draftResult={summary.modelo303.result}
+        presented={presented}
       />
       <ModeloDraft title="Casillas orientativas" model="303" summary={summary} />
       <p className="text-xs text-ink-muted">

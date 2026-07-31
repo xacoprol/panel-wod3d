@@ -58,6 +58,9 @@ export default async function FiscalPage({
           >
             Modelo 390
           </Link>
+          <Link href="/fiscal/filings" className="btn-secondary">
+            Presentados
+          </Link>
           <Link
             href={`/fiscal/annual?year=${year}`}
             className="btn-primary"
