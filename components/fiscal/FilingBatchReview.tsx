@@ -51,6 +51,10 @@ function toInput(row: Row): FilingDraftInput {
     quarter: row.modelType === "390" ? null : row.quarter,
     filedAt: row.filedAt,
     result: row.result,
+    incomeBase: row.incomeBase,
+    expensesBase: row.expensesBase,
+    vatRepercutida: row.vatRepercutida,
+    vatDeductible: row.vatDeductible,
     boxes: row.boxes,
     notes: row.notes,
     confidence: row.confidence,
@@ -69,6 +73,10 @@ export function FilingBatchReview() {
     const items = peekFilingDraftQueue();
     const initial = items.map((item) => ({
       ...item,
+      incomeBase: item.incomeBase ?? null,
+      expensesBase: item.expensesBase ?? null,
+      vatRepercutida: item.vatRepercutida ?? null,
+      vatDeductible: item.vatDeductible ?? null,
       status: "pending" as const,
     }));
     setRows(initial);
@@ -325,23 +333,101 @@ export function FilingBatchReview() {
                 </div>
               </div>
 
-              <div>
-                <label className="label">Resultado (a ingresar)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="input font-mono max-w-xs"
-                  value={row.result}
-                  disabled={locked}
-                  onChange={(e) =>
-                    patchRow(row.localId, {
-                      result: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
-                <p className="mt-1 text-xs text-ink-muted">
-                  Vista: {formatCurrency(row.result)}
-                </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label className="label">Resultado (a ingresar)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input font-mono"
+                    value={row.result}
+                    disabled={locked}
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        result: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                  <p className="mt-1 text-xs text-ink-muted">
+                    {formatCurrency(row.result)}
+                  </p>
+                </div>
+                <div>
+                  <label className="label">Ingresos (base)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input font-mono"
+                    value={row.incomeBase ?? ""}
+                    disabled={locked}
+                    placeholder="—"
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        incomeBase:
+                          e.target.value === ""
+                            ? null
+                            : parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">Gastos (base)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input font-mono"
+                    value={row.expensesBase ?? ""}
+                    disabled={locked}
+                    placeholder="—"
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        expensesBase:
+                          e.target.value === ""
+                            ? null
+                            : parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">IVA repercutido</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input font-mono"
+                    value={row.vatRepercutida ?? ""}
+                    disabled={locked}
+                    placeholder="—"
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        vatRepercutida:
+                          e.target.value === ""
+                            ? null
+                            : parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">IVA soportado</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input font-mono"
+                    value={row.vatDeductible ?? ""}
+                    disabled={locked}
+                    placeholder="—"
+                    onChange={(e) =>
+                      patchRow(row.localId, {
+                        vatDeductible:
+                          e.target.value === ""
+                            ? null
+                            : parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
               </div>
 
               <div className="overflow-x-auto">

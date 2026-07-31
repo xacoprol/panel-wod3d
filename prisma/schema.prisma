@@ -322,6 +322,11 @@ model FiscalFiling {
   quarter        Int? // 1–4; null for annual (390)
   filedAt        DateTime?
   result         Decimal   @default(0) // resultado a ingresar / clave
+  /// Totales oficiales del modelo (histórico ingresos/gastos)
+  incomeBase     Decimal?
+  expensesBase   Decimal?
+  vatRepercutida Decimal?
+  vatDeductible  Decimal?
   boxes          Json // [{ code, label, value }]
   rawExtract     Json?
   sourceFileName String?

@@ -16,6 +16,10 @@ export type FilingDraftInput = {
   quarter: number | null;
   filedAt: string | null;
   result: number;
+  incomeBase: number | null;
+  expensesBase: number | null;
+  vatRepercutida: number | null;
+  vatDeductible: number | null;
   boxes: FilingBox[];
   notes: string | null;
   confidence: string;
@@ -66,6 +70,9 @@ export async function upsertFiscalFiling(
       ? (input.rawExtract as Prisma.InputJsonValue)
       : undefined;
 
+  const toDec = (n: number | null) =>
+    n == null ? null : new Prisma.Decimal(round2(n));
+
   try {
     const row = await prisma.fiscalFiling.upsert({
       where: { periodKey },
@@ -76,6 +83,10 @@ export async function upsertFiscalFiling(
         quarter,
         filedAt,
         result: new Prisma.Decimal(round2(input.result)),
+        incomeBase: toDec(input.incomeBase),
+        expensesBase: toDec(input.expensesBase),
+        vatRepercutida: toDec(input.vatRepercutida),
+        vatDeductible: toDec(input.vatDeductible),
         boxes: boxesJson,
         rawExtract: rawJson,
         sourceFileName: input.sourceFileName,
@@ -88,6 +99,10 @@ export async function upsertFiscalFiling(
         quarter,
         filedAt,
         result: new Prisma.Decimal(round2(input.result)),
+        incomeBase: toDec(input.incomeBase),
+        expensesBase: toDec(input.expensesBase),
+        vatRepercutida: toDec(input.vatRepercutida),
+        vatDeductible: toDec(input.vatDeductible),
         boxes: boxesJson,
         rawExtract: rawJson,
         sourceFileName: input.sourceFileName,

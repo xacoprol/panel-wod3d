@@ -54,6 +54,8 @@ export default async function FiscalFilingsPage() {
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Modelo</th>
                 <th className="px-4 py-2 text-left font-medium">Periodo</th>
+                <th className="px-4 py-2 text-right font-medium">Ingresos</th>
+                <th className="px-4 py-2 text-right font-medium">Gastos</th>
                 <th className="px-4 py-2 text-right font-medium">Resultado</th>
                 <th className="px-4 py-2 text-left font-medium">Presentado</th>
                 <th className="px-4 py-2 text-left font-medium">Archivo</th>
@@ -75,6 +77,16 @@ export default async function FiscalFilingsPage() {
                     </td>
                     <td className="px-4 py-2">
                       {periodLabel(f.modelType, f.year, f.quarter)}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {f.incomeBase == null
+                        ? "—"
+                        : formatCurrency(Number(f.incomeBase))}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {f.expensesBase == null
+                        ? "—"
+                        : formatCurrency(Number(f.expensesBase))}
                     </td>
                     <td className="px-4 py-2 text-right font-mono">
                       {formatCurrency(Number(f.result))}

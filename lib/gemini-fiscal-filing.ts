@@ -17,6 +17,14 @@ export type ParsedFiscalFilingDraft = {
   quarter: number | null;
   filedAt: string | null; // YYYY-MM-DD
   result: number;
+  /** Base ingresos computables (130 casilla 01; 390/303 bases sujetas si aplica) */
+  incomeBase: number | null;
+  /** Base gastos deducibles (130 casilla 02) */
+  expensesBase: number | null;
+  /** IVA repercutido / devengado */
+  vatRepercutida: number | null;
+  /** IVA soportado deducible */
+  vatDeductible: number | null;
   boxes: FilingBox[];
   notes: string | null;
   confidence: "high" | "medium" | "low";
@@ -204,6 +212,13 @@ function parseBoxes(raw: unknown): FilingBox[] {
     .filter((b) => b.label);
 }
 
+function optionalAmount(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return round2(n);
+}
+
 function parseDraftFromText(text: string): ParsedFiscalFilingDraft {
   if (!text.trim()) {
     throw new Error("Gemini no devolvió datos. Prueba con otro PDF/imagen.");
@@ -250,6 +265,10 @@ function parseDraftFromText(text: string): ParsedFiscalFilingDraft {
     quarter,
     filedAt: normalizeDate(parsed.filedAt),
     result,
+    incomeBase: optionalAmount(parsed.incomeBase),
+    expensesBase: optionalAmount(parsed.expensesBase),
+    vatRepercutida: optionalAmount(parsed.vatRepercutida),
+    vatDeductible: optionalAmount(parsed.vatDeductible),
     boxes,
     notes: String(parsed.notes ?? "").trim() || null,
     confidence,
@@ -286,6 +305,10 @@ Devuelve SOLO un JSON válido:
   "quarter": 1,
   "filedAt": "YYYY-MM-DD" o null,
   "result": 0,
+  "incomeBase": 0,
+  "expensesBase": 0,
+  "vatRepercutida": 0,
+  "vatDeductible": 0,
   "boxes": [
     { "code": "45", "label": "descripción corta", "value": 0 }
   ],
@@ -297,9 +320,17 @@ Reglas:
 - modelType: detecta por título/cabecera (303, 130, 390). Si es resumen anual de IVA → 390.
 - year: ejercicio fiscal del modelo (no el año de presentación si difiere). Ej. 390 de 2025 presentado en ene-2026 → year=2025.
 - quarter: solo para 303 y 130 (1–4). Para 390 usa null.
-- result: importe a ingresar / resultado de la liquidación (303 casilla resultado; 130 resultado; 390 resultado liquidación anual o suma). Número, puede ser negativo si a compensar/devolver.
-- boxes: las casillas numéricas más relevantes (base, cuota, resultado). Importes en euros con punto decimal. Incluye al menos el resultado.
-- No inventes casillas que no aparezcan; si el PDF es un justificante resumido, extrae lo que haya.
+- result: importe a ingresar / resultado de la liquidación. Número; negativo si a compensar/devolver.
+- incomeBase: base de ingresos del periodo.
+  · 130 → casilla ingresos computables (suele ser 01).
+  · 303/390 → suma de bases imponibles sujetas / volumen de operaciones si aparece; si no hay base clara, null.
+- expensesBase: base de gastos deducibles.
+  · 130 → casilla gastos (suele ser 02).
+  · 303/390 → null salvo que el documento traiga base de compras (no confundir con cuota IVA).
+- vatRepercutida: total IVA devengado/repercutido (303/390). En 130 → null.
+- vatDeductible: IVA soportado deducible (303/390). En 130 → null.
+- Usa null si el dato no aparece (no inventes).
+- boxes: casillas numéricas relevantes. Importes en euros con punto decimal.
 - filedAt: fecha de presentación si aparece; si no, null.
 - Archivo de referencia: ${file.fileName}`;
 

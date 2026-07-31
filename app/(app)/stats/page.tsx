@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/calculations";
 import { buildYearStats } from "@/lib/stats";
 import { buildFiscalYearSummary } from "@/lib/fiscal";
+import { buildOfficialYearHistory } from "@/lib/fiscal-filings";
 import {
   CashflowChart,
   IncomeMixChart,
@@ -21,24 +22,32 @@ export default async function StatsPage({
       ? yearRaw
       : nowY;
 
-  const [stats, fiscal, invBounds, mktBounds] = await Promise.all([
-    buildYearStats(year),
-    buildFiscalYearSummary(year),
-    prisma.invoice.aggregate({
-      _min: { issueDate: true },
-      _max: { issueDate: true },
-    }),
-    prisma.marketplaceIncome.aggregate({
-      _min: { issueDate: true },
-      _max: { issueDate: true },
-    }),
-  ]);
+  const [stats, fiscal, official, invBounds, mktBounds, filingBounds] =
+    await Promise.all([
+      buildYearStats(year),
+      buildFiscalYearSummary(year),
+      buildOfficialYearHistory(year),
+      prisma.invoice.aggregate({
+        _min: { issueDate: true },
+        _max: { issueDate: true },
+      }),
+      prisma.marketplaceIncome.aggregate({
+        _min: { issueDate: true },
+        _max: { issueDate: true },
+      }),
+      prisma.fiscalFiling.aggregate({
+        _min: { year: true },
+        _max: { year: true },
+      }),
+    ]);
 
   const yearsFromDates = [
     invBounds._min.issueDate?.getFullYear(),
     invBounds._max.issueDate?.getFullYear(),
     mktBounds._min.issueDate?.getFullYear(),
     mktBounds._max.issueDate?.getFullYear(),
+    filingBounds._min.year ?? undefined,
+    filingBounds._max.year ?? undefined,
   ].filter((y): y is number => typeof y === "number");
   const minY = yearsFromDates.length ? Math.min(...yearsFromDates) : nowY;
   const maxY = Math.max(...yearsFromDates, nowY);
@@ -58,6 +67,11 @@ export default async function StatsPage({
     collected: m.collected,
   }));
 
+  const panelVsOfficial =
+    official.incomeBase != null
+      ? Math.round((stats.incomeBase - official.incomeBase) * 100) / 100
+      : null;
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -66,7 +80,8 @@ export default async function StatsPage({
             Estadísticas
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Ingresos reales: bases W3D + Amazon/Shopify, cobros y gastos
+            Ingresos del panel y, si hay modelos presentados, histórico oficial
+            de gestoría
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -87,11 +102,10 @@ export default async function StatsPage({
       </div>
 
       <p className="rounded-lg border border-line bg-accent-soft/40 px-4 py-3 text-sm text-ink-muted">
-        <strong className="font-medium text-ink">Ingresos</strong> = base
-        imponible de facturas W3D + marketplace.{" "}
-        <strong className="font-medium text-ink">Cobrado</strong> = pagos
-        registrados en facturas (caja). Amazon/Shopify se cuentan por fecha del
-        informe importado.
+        <strong className="font-medium text-ink">Panel</strong> = facturas W3D
+        + marketplace + gastos registrados.{" "}
+        <strong className="font-medium text-ink">Gestoría</strong> = totales de
+        modelos 130/303/390 presentados (agregados, no detalle).
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -142,9 +156,137 @@ export default async function StatsPage({
       <section className="card-panel p-5">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold">Fiscal del año</h2>
+            <h2 className="text-sm font-semibold">
+              Histórico gestoría ({year})
+            </h2>
             <p className="mt-0.5 text-xs text-ink-muted">
-              Estimaciones 303 / 130 (suma de trimestres)
+              Totales oficiales de modelos presentados
+            </p>
+          </div>
+          <Link
+            href="/fiscal/filings"
+            className="text-xs text-accent hover:underline"
+          >
+            Gestionar presentados
+          </Link>
+        </div>
+
+        {!official.hasData ? (
+          <p className="text-sm text-ink-muted">
+            Aún no hay modelos presentados para {year}. Sube el 390 / 303 / 130
+            de la gestoría para rellenar este histórico.
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: "Ingresos oficiales",
+                  value: official.incomeBase,
+                  hint: official.incomeSource,
+                },
+                {
+                  label: "Gastos oficiales",
+                  value: official.expensesBase,
+                  hint: official.expensesSource,
+                },
+                {
+                  label: "IVA repercutido",
+                  value: official.vatRepercutida,
+                  hint: "303 / 390",
+                },
+                {
+                  label: "IVA soportado",
+                  value: official.vatDeductible,
+                  hint: "303 / 390",
+                },
+              ].map((card) => (
+                <div
+                  key={card.label}
+                  className="rounded-lg border border-line/60 p-3"
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+                    {card.label}
+                  </p>
+                  <p className="mt-1.5 font-mono text-lg font-semibold">
+                    {card.value == null ? "—" : formatCurrency(card.value)}
+                  </p>
+                  <p className="mt-1 text-xs text-ink-muted">{card.hint}</p>
+                </div>
+              ))}
+            </div>
+
+            {panelVsOfficial != null ? (
+              <p className="mt-3 text-xs text-ink-muted">
+                Panel vs gestoría (ingresos):{" "}
+                <span
+                  className={
+                    Math.abs(panelVsOfficial) < 1
+                      ? "text-success"
+                      : "text-warning"
+                  }
+                >
+                  {panelVsOfficial === 0
+                    ? "cuadran"
+                    : `${panelVsOfficial > 0 ? "+" : ""}${formatCurrency(panelVsOfficial)}`}
+                </span>
+              </p>
+            ) : null}
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-line text-xs uppercase tracking-wide text-ink-muted">
+                  <tr>
+                    <th className="px-2 py-2 text-left font-medium">Periodo</th>
+                    <th className="px-2 py-2 text-right font-medium">
+                      Ingresos
+                    </th>
+                    <th className="px-2 py-2 text-right font-medium">Gastos</th>
+                    <th className="px-2 py-2 text-right font-medium">303</th>
+                    <th className="px-2 py-2 text-right font-medium">130</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {official.periods
+                    .filter((p) => p.quarter != null)
+                    .map((p) => (
+                      <tr key={p.label} className="border-b border-line/50">
+                        <td className="px-2 py-2">{p.label}</td>
+                        <td className="px-2 py-2 text-right font-mono">
+                          {p.incomeBase == null
+                            ? "—"
+                            : formatCurrency(p.incomeBase)}
+                        </td>
+                        <td className="px-2 py-2 text-right font-mono">
+                          {p.expensesBase == null
+                            ? "—"
+                            : formatCurrency(p.expensesBase)}
+                        </td>
+                        <td className="px-2 py-2 text-right font-mono">
+                          {p.result303 == null
+                            ? "—"
+                            : formatCurrency(p.result303)}
+                        </td>
+                        <td className="px-2 py-2 text-right font-mono">
+                          {p.result130 == null
+                            ? "—"
+                            : formatCurrency(p.result130)}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="card-panel p-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Fiscal del año (panel)</h2>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              Estimaciones 303 / 130 calculadas
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
