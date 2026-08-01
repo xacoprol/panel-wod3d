@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 const API_VERSION = "2025-01";
 
 export type ShopifyCredentials = {
-  shop: string; // xxx.myshopify.com
-  /** Token listo para X-Shopify-Access-Token */
+  shop: string;
   accessToken: string;
 };
 
@@ -12,7 +11,6 @@ type ShopifyAuthConfig = {
   shop: string;
   clientId?: string;
   clientSecret?: string;
-  /** Token legacy fijo (apps admin antiguas) */
   staticAccessToken?: string;
 };
 
@@ -59,11 +57,10 @@ async function loadAuthConfig(): Promise<ShopifyAuthConfig | null> {
     (process.env.SHOPIFY_ACCESS_TOKEN ?? "").trim() ||
     undefined;
 
-  if (!clientId && !clientSecret && !staticAccessToken) return null;
+  if ((!clientId || !clientSecret) && !staticAccessToken) return null;
   return { shop, clientId, clientSecret, staticAccessToken };
 }
 
-/** Cache en memoria del token de client_credentials (caduca ~24 h). */
 let cachedToken: { shop: string; token: string; expiresAt: number } | null =
   null;
 
@@ -95,6 +92,7 @@ async function fetchClientCredentialsToken(
     /* ignore */
   }
   if (!res.ok || !json.access_token) {
+    cachedToken = null;
     const detail =
       json.error_description ||
       json.error ||
@@ -102,10 +100,15 @@ async function fetchClientCredentialsToken(
       res.statusText;
     if (String(detail).includes("shop_not_permitted")) {
       throw new Error(
-        "Shopify: client credentials no permitido en esta tienda. La app del Dev Dashboard debe estar en la misma organización e instalada en la tienda."
+        "Shopify: client credentials no permitido. La app debe ser de tu organización e instalada en esta tienda."
       );
     }
-    throw new Error(`Shopify OAuth ${res.status}: ${detail}`);
+    if (String(detail).toLowerCase().includes("invalid_client")) {
+      throw new Error(
+        "Client ID o Client secret incorrectos. Cópialos de nuevo desde Dev Dashboard → Settings."
+      );
+    }
+    throw new Error(`Shopify OAuth: ${detail}`);
   }
   const expiresIn = Number(json.expires_in) || 86399;
   cachedToken = {
@@ -163,16 +166,8 @@ export function shopifyConfiguredHint(settings: {
       (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ?? "").trim() ||
       (process.env.SHOPIFY_ACCESS_TOKEN ?? "").trim()
   );
-  const hasToken = hasClientCreds || hasStatic;
-  return { ready: Boolean(shop && hasToken), shop, hasToken };
+  return { ready: Boolean(shop && (hasClientCreds || hasStatic)), shop, hasToken: hasClientCreds || hasStatic };
 }
-
-type ShopifyListOrdersParams = {
-  createdAtMin?: string;
-  createdAtMax?: string;
-  updatedAtMin?: string;
-  limit?: number;
-};
 
 export type ShopifyOrder = {
   id: number;
@@ -195,78 +190,195 @@ export type ShopifyOrder = {
   }[];
 };
 
-function nextPageUrl(linkHeader: string | null): string | null {
-  if (!linkHeader) return null;
-  for (const part of linkHeader.split(",")) {
-    const m = /<([^>]+)>\s*;\s*rel="next"/i.exec(part.trim());
-    if (m) return m[1];
+type GqlMoney = { amount?: string; currencyCode?: string };
+type GqlOrderNode = {
+  id: string;
+  name: string;
+  createdAt: string;
+  processedAt?: string | null;
+  cancelledAt?: string | null;
+  displayFinancialStatus?: string | null;
+  taxesIncluded?: boolean;
+  totalPriceSet?: { shopMoney?: GqlMoney };
+  totalTaxSet?: { shopMoney?: GqlMoney };
+  subtotalPriceSet?: { shopMoney?: GqlMoney };
+  billingAddress?: { countryCodeV2?: string | null } | null;
+  shippingAddress?: { countryCodeV2?: string | null } | null;
+  taxLines?: {
+    rate?: number | null;
+    channelLiable?: boolean | null;
+    priceSet?: { shopMoney?: GqlMoney };
+  }[];
+};
+
+async function shopifyGraphql<T>(
+  creds: ShopifyCredentials,
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<T> {
+  const res = await fetch(
+    `https://${creds.shop}/admin/api/${API_VERSION}/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": creds.accessToken,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ query, variables }),
+      cache: "no-store",
+    }
+  );
+  const text = await res.text();
+  let json: {
+    data?: T;
+    errors?: { message?: string }[];
+  } = {};
+  try {
+    json = JSON.parse(text) as typeof json;
+  } catch {
+    /* ignore */
   }
-  return null;
+  if (!res.ok) {
+    cachedToken = null;
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        "Shopify 401/403: revisa Client ID/Secret, que la app esté instalada y el scope read_orders en la versión lanzada."
+      );
+    }
+    throw new Error(
+      `Shopify GraphQL HTTP ${res.status}: ${text.slice(0, 200)}`
+    );
+  }
+  if (json.errors?.length) {
+    const msg = json.errors.map((e) => e.message).join("; ");
+    if (/access|denied|scope|permission/i.test(msg)) {
+      throw new Error(
+        `Shopify sin permiso: ${msg}. En Dev Dashboard → Versions añade read_orders (y read_all_orders si quieres histórico), Release e reinstala la app.`
+      );
+    }
+    throw new Error(`Shopify GraphQL: ${msg}`);
+  }
+  if (!json.data) {
+    throw new Error("Shopify GraphQL: respuesta vacía");
+  }
+  return json.data;
 }
+
+function gidToOrderId(gid: string): number {
+  const m = /Order\/(\d+)/.exec(gid);
+  return m ? Number(m[1]) : Number(gid.replace(/\D/g, "")) || 0;
+}
+
+function mapGqlOrder(node: GqlOrderNode): ShopifyOrder | null {
+  const id = gidToOrderId(node.id);
+  if (!id) return null;
+  const currency =
+    node.totalPriceSet?.shopMoney?.currencyCode ||
+    node.subtotalPriceSet?.shopMoney?.currencyCode ||
+    "EUR";
+  return {
+    id,
+    name: node.name,
+    created_at: node.createdAt,
+    processed_at: node.processedAt ?? null,
+    cancelled_at: node.cancelledAt ?? null,
+    financial_status: (node.displayFinancialStatus || "").toLowerCase() || null,
+    taxes_included: Boolean(node.taxesIncluded),
+    total_price: node.totalPriceSet?.shopMoney?.amount ?? "0",
+    total_tax: node.totalTaxSet?.shopMoney?.amount ?? "0",
+    subtotal_price: node.subtotalPriceSet?.shopMoney?.amount ?? "0",
+    currency,
+    billing_address: {
+      country_code: node.billingAddress?.countryCodeV2 ?? null,
+    },
+    shipping_address: {
+      country_code: node.shippingAddress?.countryCodeV2 ?? null,
+    },
+    tax_lines: (node.taxLines ?? []).map((t) => ({
+      price: t.priceSet?.shopMoney?.amount ?? "0",
+      rate: t.rate ?? undefined,
+      channel_liable: t.channelLiable ?? null,
+    })),
+  };
+}
+
+const ORDER_NODE_FIELDS = `
+  id
+  name
+  createdAt
+  processedAt
+  cancelledAt
+  displayFinancialStatus
+  taxesIncluded
+  totalPriceSet { shopMoney { amount currencyCode } }
+  totalTaxSet { shopMoney { amount } }
+  subtotalPriceSet { shopMoney { amount } }
+  billingAddress { countryCodeV2 }
+  shippingAddress { countryCodeV2 }
+  taxLines {
+    rate
+    channelLiable
+    priceSet { shopMoney { amount } }
+  }
+`;
+
+type ShopifyListOrdersParams = {
+  createdAtMin?: string;
+  createdAtMax?: string;
+  updatedAtMin?: string;
+};
 
 export async function fetchShopifyOrders(
   creds: ShopifyCredentials,
   params: ShopifyListOrdersParams
 ): Promise<ShopifyOrder[]> {
-  const qs = new URLSearchParams();
-  qs.set("status", "any");
-  qs.set("limit", String(Math.min(params.limit ?? 250, 250)));
-  if (params.createdAtMin) qs.set("created_at_min", params.createdAtMin);
-  if (params.createdAtMax) qs.set("created_at_max", params.createdAtMax);
-  if (params.updatedAtMin) qs.set("updated_at_min", params.updatedAtMin);
-  qs.set(
-    "fields",
-    [
-      "id",
-      "name",
-      "created_at",
-      "processed_at",
-      "cancelled_at",
-      "financial_status",
-      "taxes_included",
-      "total_price",
-      "total_tax",
-      "subtotal_price",
-      "currency",
-      "billing_address",
-      "shipping_address",
-      "tax_lines",
-    ].join(",")
-  );
+  const parts: string[] = [];
+  if (params.updatedAtMin) {
+    parts.push(`updated_at:>=${params.updatedAtMin}`);
+  } else {
+    if (params.createdAtMin) parts.push(`created_at:>=${params.createdAtMin}`);
+    if (params.createdAtMax) parts.push(`created_at:<=${params.createdAtMax}`);
+  }
+  const queryFilter = parts.join(" ");
 
-  let nextUrl: string | null =
-    `https://${creds.shop}/admin/api/${API_VERSION}/orders.json?${qs}`;
+  const query = `
+    query OrdersPage($cursor: String, $query: String) {
+      orders(first: 50, after: $cursor, query: $query, sortKey: CREATED_AT) {
+        pageInfo { hasNextPage endCursor }
+        nodes { ${ORDER_NODE_FIELDS} }
+      }
+    }
+  `;
+
   const all: ShopifyOrder[] = [];
+  let cursor: string | null = null;
   let pages = 0;
 
-  while (nextUrl) {
+  for (;;) {
     pages++;
-    if (pages > 40) {
+    if (pages > 80) {
       throw new Error(
-        "Demasiados pedidos en el periodo (>10.000). Acota el rango de fechas."
+        "Demasiados pedidos en el periodo. Acota el rango de fechas."
       );
     }
-    const res = await fetch(nextUrl, {
-      headers: {
-        "X-Shopify-Access-Token": creds.accessToken,
-        Accept: "application/json",
-      },
-      cache: "no-store",
+    type PageData = {
+      orders: {
+        pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+        nodes: GqlOrderNode[];
+      };
+    };
+    const data: PageData = await shopifyGraphql<PageData>(creds, query, {
+      cursor,
+      query: queryFilter || null,
     });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      if (res.status === 401 || res.status === 403) {
-        throw new Error(
-          "Shopify rechazó el acceso (401/403). Revisa Client ID/Secret, que la app esté instalada y el scope read_orders."
-        );
-      }
-      throw new Error(
-        `Shopify API ${res.status}: ${body.slice(0, 200) || res.statusText}`
-      );
+    for (const node of data.orders.nodes) {
+      const mapped = mapGqlOrder(node);
+      if (mapped) all.push(mapped);
     }
-    const json = (await res.json()) as { orders?: ShopifyOrder[] };
-    all.push(...(json.orders ?? []));
-    nextUrl = nextPageUrl(res.headers.get("link"));
+    if (!data.orders.pageInfo.hasNextPage) break;
+    cursor = data.orders.pageInfo.endCursor ?? null;
+    if (!cursor) break;
   }
 
   return all;
@@ -276,27 +388,11 @@ export async function testShopifyConnection(
   creds: ShopifyCredentials
 ): Promise<{ ok: true; shopName: string } | { ok: false; error: string }> {
   try {
-    const res = await fetch(
-      `https://${creds.shop}/admin/api/${API_VERSION}/shop.json`,
-      {
-        headers: {
-          "X-Shopify-Access-Token": creds.accessToken,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      }
+    const data = await shopifyGraphql<{ shop: { name?: string } }>(
+      creds,
+      `{ shop { name } }`
     );
-    if (!res.ok) {
-      return {
-        ok: false,
-        error:
-          res.status === 401 || res.status === 403
-            ? "Credenciales no válidas o app sin instalar / sin read_orders"
-            : `Error Shopify ${res.status}`,
-      };
-    }
-    const json = (await res.json()) as { shop?: { name?: string } };
-    return { ok: true, shopName: json.shop?.name ?? creds.shop };
+    return { ok: true, shopName: data.shop?.name ?? creds.shop };
   } catch (e) {
     return {
       ok: false,

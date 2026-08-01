@@ -76,12 +76,19 @@ export async function testShopifyConnectionAction(): Promise<
   { ok: true; shopName: string } | { ok: false; error: string }
 > {
   await requireAuth();
-  const creds = await getShopifyCredentials();
-  if (!creds) {
+  try {
+    const creds = await getShopifyCredentials();
+    if (!creds) {
+      return {
+        ok: false,
+        error: "Falta tienda o Client ID/Secret (Ajustes · Dev Dashboard).",
+      };
+    }
+    return await testShopifyConnection(creds);
+  } catch (e) {
     return {
       ok: false,
-      error: "Falta tienda o Client ID/Secret (Ajustes · Dev Dashboard).",
+      error: e instanceof Error ? e.message : "No se pudo conectar",
     };
   }
-  return testShopifyConnection(creds);
 }
