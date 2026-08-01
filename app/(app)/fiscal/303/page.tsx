@@ -45,9 +45,14 @@ export default async function Modelo303Page({
       />
       <ModeloDraft title="Casillas orientativas" model="303" summary={summary} />
       <p className="text-xs text-ink-muted">
-        Usa estos importes como guía al rellenar el modelo en la sede
-        electrónica. Las numeraciones de casilla corresponden al régimen
-        general habitual y pueden variar según tu situación.
+        Copia estos importes en la sede electrónica (régimen general). Casilla{" "}
+        <strong>69</strong> es el resultado a ingresar / compensar. La{" "}
+        <strong>110</strong> arrastra saldos negativos de trimestres previos del
+        año (y del 4T anterior si lo tienes en Presentados). Canarias va en{" "}
+        <strong>60</strong> con exportaciones; marketplace OSS en{" "}
+        <strong>123</strong>. Compras UE (Bambu, etc.) van en{" "}
+        <strong>10/11</strong> y <strong>36/37</strong> si el gasto está marcado
+        como intracomunitario. No cubre criterio de caja.
       </p>
     </div>
   );

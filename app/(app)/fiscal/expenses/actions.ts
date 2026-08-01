@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
+import {
+  isExpenseIntracom,
+  parseExpenseVatOperationType,
+} from "@/lib/fiscal";
 
 export type ExpenseFormState = {
   error?: string;
@@ -34,6 +38,9 @@ function normalizeNif(raw: string | null | undefined): string | null {
 function parseExpenseForm(formData: FormData) {
   const subtotal =
     parseFloat(String(formData.get("subtotal") ?? "0").replace(",", ".")) || 0;
+  const vatOperationType = parseExpenseVatOperationType(
+    formData.get("vatOperationType")
+  );
   const vatRate =
     parseFloat(String(formData.get("vatRate") ?? "21").replace(",", ".")) || 0;
   const vatAmountRaw = String(formData.get("vatAmount") ?? "").trim();
@@ -41,9 +48,12 @@ function parseExpenseForm(formData: FormData) {
     ? parseFloat(vatAmountRaw.replace(",", ".")) || 0
     : round2(subtotal * (vatRate / 100));
   const totalRaw = String(formData.get("total") ?? "").trim();
+  // Intracom: lo pagado al proveedor suele ser la base (ISP); la cuota 11/37 es autorrepercutida
   const total = totalRaw
     ? parseFloat(totalRaw.replace(",", ".")) || 0
-    : round2(subtotal + vatAmount);
+    : isExpenseIntracom(vatOperationType)
+      ? round2(subtotal)
+      : round2(subtotal + vatAmount);
 
   const issueDateRaw = String(formData.get("issueDate") ?? "").trim();
   return {
@@ -55,6 +65,7 @@ function parseExpenseForm(formData: FormData) {
     ),
     description: String(formData.get("description") ?? "").trim() || null,
     category: String(formData.get("category") ?? "OTROS").trim() || "OTROS",
+    vatOperationType,
     subtotal,
     vatRate,
     vatAmount,
@@ -145,6 +156,7 @@ export type ExpenseDraftInput = {
   invoiceNumber?: string | null;
   description?: string | null;
   category?: string;
+  vatOperationType?: string;
   subtotal: number;
   vatRate: number;
   vatAmount?: number;
@@ -155,6 +167,7 @@ export type ExpenseDraftInput = {
 
 function fromDraftInput(input: ExpenseDraftInput): ExpenseWriteData {
   const subtotal = round2(Math.max(0, Number(input.subtotal) || 0));
+  const vatOperationType = parseExpenseVatOperationType(input.vatOperationType);
   const vatRate = Number(input.vatRate) || 0;
   const vatAmount =
     input.vatAmount != null
@@ -163,7 +176,9 @@ function fromDraftInput(input: ExpenseDraftInput): ExpenseWriteData {
   const total =
     input.total != null
       ? round2(Math.max(0, Number(input.total) || 0))
-      : round2(subtotal + vatAmount);
+      : isExpenseIntracom(vatOperationType)
+        ? subtotal
+        : round2(subtotal + vatAmount);
   const issueDateRaw = String(input.issueDate ?? "").trim();
 
   return {
@@ -173,6 +188,7 @@ function fromDraftInput(input: ExpenseDraftInput): ExpenseWriteData {
     invoiceNumber: normalizeInvoiceNumber(input.invoiceNumber),
     description: String(input.description ?? "").trim() || null,
     category: String(input.category ?? "OTROS").trim() || "OTROS",
+    vatOperationType,
     subtotal,
     vatRate,
     vatAmount,

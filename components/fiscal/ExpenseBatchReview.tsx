@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { VAT_RATES } from "@/lib/calculations";
-import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
+import {
+  EXPENSE_CATEGORIES,
+  EXPENSE_VAT_OPERATION_TYPES,
+  isExpenseIntracom,
+  parseExpenseVatOperationType,
+} from "@/lib/fiscal";
 import { DateInput } from "@/components/ui/DateInput";
 import {
   createExpenseFromDraft,
@@ -42,6 +47,7 @@ function toQueueItem(row: Row): ExpenseQueueItem {
     invoiceNumber: row.invoiceNumber,
     description: row.description,
     category: row.category,
+    vatOperationType: row.vatOperationType ?? "INTERIOR",
     subtotal: row.subtotal,
     vatRate: row.vatRate,
     vatAmount: row.vatAmount,
@@ -61,6 +67,7 @@ function persistPending(rows: Row[]) {
 }
 
 function toInput(row: Row): ExpenseDraftInput {
+  const vatOperationType = parseExpenseVatOperationType(row.vatOperationType);
   const vatAmount = round2(row.subtotal * (row.vatRate / 100));
   return {
     issueDate: row.issueDate,
@@ -69,10 +76,13 @@ function toInput(row: Row): ExpenseDraftInput {
     invoiceNumber: row.invoiceNumber,
     description: row.description,
     category: row.category,
+    vatOperationType,
     subtotal: row.subtotal,
     vatRate: row.vatRate,
     vatAmount,
-    total: round2(row.subtotal + vatAmount),
+    total: isExpenseIntracom(vatOperationType)
+      ? round2(row.subtotal)
+      : round2(row.subtotal + vatAmount),
     deductible: row.deductible,
     notes: row.notes,
   };
@@ -90,6 +100,7 @@ export function ExpenseBatchReview() {
       const fit = (item.activityFit ?? "ok") as ActivityFit;
       return {
         ...item,
+        vatOperationType: item.vatOperationType ?? "INTERIOR",
         activityFit: fit,
         activityFitReason: item.activityFitReason ?? null,
         homeOfficeTip: item.homeOfficeTip ?? null,
@@ -215,7 +226,10 @@ export function ExpenseBatchReview() {
       <ul className="space-y-4">
         {rows.map((row, index) => {
           const vatAmount = round2(row.subtotal * (row.vatRate / 100));
-          const total = round2(row.subtotal + vatAmount);
+          const intracom = isExpenseIntracom(row.vatOperationType);
+          const total = intracom
+            ? round2(row.subtotal)
+            : round2(row.subtotal + vatAmount);
           const locked = row.status === "saved" || row.status === "saving";
 
           return (
@@ -365,6 +379,30 @@ export function ExpenseBatchReview() {
                       })
                     }
                   />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="label">Tipo operación</label>
+                  <select
+                    className="input"
+                    value={row.vatOperationType ?? "INTERIOR"}
+                    disabled={locked}
+                    onChange={(e) => {
+                      const next = parseExpenseVatOperationType(e.target.value);
+                      patchRow(row.localId, {
+                        vatOperationType: next,
+                        vatRate:
+                          isExpenseIntracom(next) && row.vatRate === 0
+                            ? 21
+                            : row.vatRate,
+                      });
+                    }}
+                  >
+                    {EXPENSE_VAT_OPERATION_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="label">Base</label>

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { InlineSkeleton } from "@/components/ui/PageSkeleton";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
-import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
+import { EXPENSE_CATEGORIES, isExpenseIntracom } from "@/lib/fiscal";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
 import { LiveSearch } from "@/components/ui/LiveSearch";
@@ -114,11 +114,18 @@ export default async function ExpensesPage({
                         {e.description}
                       </p>
                     ) : null}
-                    {!e.deductible ? (
-                      <span className="badge mt-1 bg-line text-ink-muted">
-                        No deducible
-                      </span>
-                    ) : null}
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {isExpenseIntracom(e.vatOperationType) ? (
+                        <span className="badge bg-accent-soft text-accent">
+                          Intracom
+                        </span>
+                      ) : null}
+                      {!e.deductible ? (
+                        <span className="badge bg-line text-ink-muted">
+                          No deducible
+                        </span>
+                      ) : null}
+                    </span>
                   </td>
                   <td className="hidden px-4 py-3 font-mono text-ink-muted md:table-cell">
                     {e.invoiceNumber ?? "—"}

@@ -263,10 +263,10 @@ export default async function FiscalAnnualPage({
       <div className="grid gap-6 lg:grid-cols-2">
         <AnnualModeloDraft
           title="IVA anual (agregado)"
-          how="Suma de bases y cuotas del año. El resultado de casilla 45 puede diferir de la suma de los 303 si hay compensaciones entre trimestres."
+          how="Suma de bases y cuotas del año (sin cadena de compensación). El resultado a ingresar neto del año es la suma de las casillas 69 trimestrales."
           boxes={summary.modelo303.boxes}
-          result={summary.modelo303.result}
-          resultLabel="Resultado IVA agregado del año"
+          result={summary.ivaNetYear}
+          resultLabel="Suma resultados 303 (casilla 69 de cada T)"
           incomplete={missingExpenses}
         />
         <AnnualModeloDraft

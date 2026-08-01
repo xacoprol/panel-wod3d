@@ -1,4 +1,8 @@
-import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
+import {
+  EXPENSE_CATEGORIES,
+  parseExpenseVatOperationType,
+  type ExpenseVatOperationType,
+} from "@/lib/fiscal";
 import {
   geminiConfigured as geminiKeyConfigured,
   generateJsonWithFallback,
@@ -25,6 +29,8 @@ export type ParsedExpenseDraft = {
   invoiceNumber: string | null;
   description: string | null;
   category: string;
+  /** INTERIOR | INTRACOMUNITARIA */
+  vatOperationType: ExpenseVatOperationType;
   subtotal: number;
   vatRate: number;
   vatAmount: number;
@@ -111,15 +117,30 @@ function parseDraftFromText(text: string): ParsedExpenseDraft {
   }
 
   const subtotal = round2(Math.max(0, Number(parsed.subtotal) || 0));
-  const vatRate = normalizeVatRate(parsed.vatRate);
+  const vatOperationType = parseExpenseVatOperationType(
+    parsed.vatOperationType
+  );
+  const intracom = vatOperationType === "INTRACOMUNITARIA";
+  let vatRate = normalizeVatRate(parsed.vatRate);
+  if (intracom && vatRate === 0) vatRate = 21;
   let vatAmount = round2(Math.max(0, Number(parsed.vatAmount) || 0));
   let total = round2(Math.max(0, Number(parsed.total) || 0));
 
-  if (!vatAmount && subtotal && vatRate) {
-    vatAmount = round2(subtotal * (vatRate / 100));
-  }
-  if (!total) {
-    total = round2(subtotal + vatAmount);
+  if (intracom) {
+    if (!vatAmount && subtotal) {
+      vatAmount = round2(subtotal * (vatRate / 100));
+    }
+    // Lo pagado al proveedor UE suele ser la base (sin IVA ES)
+    if (!total || Math.abs(total - (subtotal + vatAmount)) < 0.05) {
+      total = subtotal;
+    }
+  } else {
+    if (!vatAmount && subtotal && vatRate) {
+      vatAmount = round2(subtotal * (vatRate / 100));
+    }
+    if (!total) {
+      total = round2(subtotal + vatAmount);
+    }
   }
 
   const confidenceRaw = String(parsed.confidence ?? "medium").toLowerCase();
@@ -147,6 +168,7 @@ function parseDraftFromText(text: string): ParsedExpenseDraft {
     invoiceNumber: String(parsed.invoiceNumber ?? "").trim() || null,
     description: String(parsed.description ?? "").trim() || null,
     category: normalizeCategory(parsed.category),
+    vatOperationType,
     subtotal,
     vatRate,
     vatAmount,
@@ -194,6 +216,7 @@ Devuelve SOLO un JSON válido con esta forma exacta:
   "invoiceNumber": "número de factura del proveedor o null",
   "description": "concepto breve en español o null",
   "category": "una de: ${categories}",
+  "vatOperationType": "INTERIOR" | "INTRACOMUNITARIA",
   "subtotal": 0,
   "vatRate": 21,
   "vatAmount": 0,
@@ -210,7 +233,9 @@ Reglas de extracción:
 - subtotal = base imponible (sin IVA). vatAmount = cuota IVA. total = a pagar.
 - invoiceNumber = nº de factura/ticket del emisor (Factura nº, Nº, Invoice #…). Si no se lee, null.
 - Si hay varios tipos de IVA, usa el predominante o el del total; anótalo en notes.
-- Si no hay IVA (exento), vatRate=0, vatAmount=0, total=subtotal.
+- Si no hay IVA (exento interior), vatRate=0, vatAmount=0, total=subtotal.
+- vatOperationType = INTRACOMUNITARIA si: proveedor UE (VAT ID no español), "reverse charge", "inversión del sujeto pasivo", "intra-community", Bambu Lab / EU supplier sin IVA español, o factura 0% IVA con mención ISP/AIB. En ese caso: subtotal = importe factura, vatRate = tipo español aplicable (casi siempre 21), vatAmount = subtotal×tipo/100 (cuota a autorrepercutir), total = subtotal.
+- Si no hay indicios claros de intracom → INTERIOR.
 - No inventes NIF: si no se lee claramente, null.
 - La fecha es la de la factura/ticket, no la de hoy.
 - category: elige la más razonable (SOFTWARE, SUMINISTROS, MATERIAL, DIETAS, PROFESIONALES, OTROS).

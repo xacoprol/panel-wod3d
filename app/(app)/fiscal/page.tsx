@@ -130,6 +130,9 @@ export default async function FiscalPage({
             {summary.expenses.count} gasto
             {summary.expenses.count === 1 ? "" : "s"} · base{" "}
             {formatCurrency(summary.expenses.base)}
+            {summary.expenses.aibBase > 0
+              ? ` · AIB ${formatCurrency(summary.expenses.aibQuota)}`
+              : ""}
           </p>
         </div>
         <div className="card-panel p-4">

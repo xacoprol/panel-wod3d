@@ -296,6 +296,8 @@ model Expense {
   invoiceNumber  String?  // nº factura del proveedor (detectar duplicados)
   description    String?
   category       String   @default("OTROS") // SUMINISTROS | SOFTWARE | MATERIAL | DIETAS | PROFESIONALES | OTROS
+  /// INTERIOR = compra España; INTRACOMUNITARIA = AIB/ISP (303 casillas 10/11 y 36/37)
+  vatOperationType String @default("INTERIOR")
   subtotal       Decimal
   vatRate        Float    @default(21)
   vatAmount      Decimal

@@ -23,6 +23,7 @@ export function consumeExpenseDraft(): ParsedExpenseDraft | null {
     const draft = JSON.parse(raw) as ParsedExpenseDraft;
     return {
       ...draft,
+      vatOperationType: draft.vatOperationType ?? "INTERIOR",
       activityFit: draft.activityFit ?? "ok",
       activityFitReason: draft.activityFitReason ?? null,
       homeOfficeTip: draft.homeOfficeTip ?? null,
@@ -46,6 +47,7 @@ export function peekExpenseDraftQueue(): ExpenseQueueItem[] {
     if (!Array.isArray(parsed)) return [];
     return parsed.map((item) => ({
       ...item,
+      vatOperationType: item.vatOperationType ?? "INTERIOR",
       activityFit: item.activityFit ?? "ok",
       activityFitReason: item.activityFitReason ?? null,
       homeOfficeTip: item.homeOfficeTip ?? null,

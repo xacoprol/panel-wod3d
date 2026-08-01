@@ -24,7 +24,7 @@ export function ModeloDraft({ title, model, summary }: Props) {
 
   const how =
     model === "303"
-      ? "IVA de facturas W3D + Amazon taxable − IVA de gastos deducibles (solo este trimestre)."
+      ? "Régimen general: cuotas 4/10/21 % + AIB (10/11) − deducible (29+37). Incluye ops. especiales (59/60/123) y compensación (110/78/69)."
       : "Acumulado desde el 1 de enero: 20 % del rendimiento neto − pagos 130 previos del año − retenciones. Casillas alineadas con el modelo oficial.";
 
   return (

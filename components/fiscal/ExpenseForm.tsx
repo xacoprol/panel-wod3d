@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import type { Expense } from "@prisma/client";
 import { VAT_RATES } from "@/lib/calculations";
-import { EXPENSE_CATEGORIES } from "@/lib/fiscal";
+import {
+  EXPENSE_CATEGORIES,
+  EXPENSE_VAT_OPERATION_TYPES,
+  isExpenseIntracom,
+  parseExpenseVatOperationType,
+  type ExpenseVatOperationType,
+} from "@/lib/fiscal";
 import { DateInput } from "@/components/ui/DateInput";
 import { ExpenseDropZone } from "@/components/fiscal/ExpenseDropZone";
 import {
@@ -52,6 +58,10 @@ export function ExpenseForm({ expense }: Props) {
   const [subtotal, setSubtotal] = useState(
     expense ? Number(expense.subtotal) : 0
   );
+  const [vatOperationType, setVatOperationType] =
+    useState<ExpenseVatOperationType>(
+      parseExpenseVatOperationType(expense?.vatOperationType)
+    );
   const [vatRate, setVatRate] = useState(expense?.vatRate ?? 21);
   const [notes, setNotes] = useState(expense?.notes ?? "");
   const [deductible, setDeductible] = useState(expense?.deductible ?? true);
@@ -63,13 +73,15 @@ export function ExpenseForm({ expense }: Props) {
   );
   const [homeOfficeTip, setHomeOfficeTip] = useState<string | null>(null);
 
+  const intracom = isExpenseIntracom(vatOperationType);
   const vatAmount = useMemo(
     () => Math.round(subtotal * (vatRate / 100) * 100) / 100,
     [subtotal, vatRate]
   );
   const total = useMemo(
-    () => Math.round((subtotal + vatAmount) * 100) / 100,
-    [subtotal, vatAmount]
+    () =>
+      Math.round((intracom ? subtotal : subtotal + vatAmount) * 100) / 100,
+    [subtotal, vatAmount, intracom]
   );
 
   function applyDraft(draft: ParsedExpenseDraft) {
@@ -81,7 +93,11 @@ export function ExpenseForm({ expense }: Props) {
     setInvoiceNumber(draft.invoiceNumber ?? "");
     setDescription(draft.description ?? "");
     setSubtotal(draft.subtotal);
-    setVatRate(draft.vatRate);
+    const op = parseExpenseVatOperationType(draft.vatOperationType);
+    setVatOperationType(op);
+    setVatRate(
+      isExpenseIntracom(op) ? draft.vatRate || 21 : draft.vatRate
+    );
     setNotes(draft.notes ?? "");
     setActivityFit(draft.activityFit ?? "ok");
     setActivityFitReason(draft.activityFitReason ?? null);
@@ -151,7 +167,7 @@ export function ExpenseForm({ expense }: Props) {
           </h2>
           <p className="form-section-hint">
             Factura recibida o ticket. Entra en el IVA soportado (303) y en el
-            130 si es deducible.
+            130 si es deducible. Bambu Lab y similares UE → Intracomunitaria.
           </p>
         </div>
 
@@ -251,6 +267,36 @@ export function ExpenseForm({ expense }: Props) {
           />
         </div>
 
+        <div>
+          <label className="label" htmlFor="vatOperationType">
+            Tipo de operación
+          </label>
+          <select
+            id="vatOperationType"
+            name="vatOperationType"
+            className="input"
+            value={vatOperationType}
+            onChange={(e) => {
+              const next = parseExpenseVatOperationType(e.target.value);
+              setVatOperationType(next);
+              if (isExpenseIntracom(next) && vatRate === 0) setVatRate(21);
+            }}
+          >
+            {EXPENSE_VAT_OPERATION_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          {intracom ? (
+            <p className="mt-1 text-xs text-ink-muted">
+              ISP: base = importe factura UE. El IVA % es el español a
+              autorrepercutir (casillas 10/11 y 36/37 del 303); no lo pagas al
+              proveedor.
+            </p>
+          ) : null}
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="subtotal">
@@ -270,7 +316,7 @@ export function ExpenseForm({ expense }: Props) {
           </div>
           <div>
             <label className="label" htmlFor="vatRate">
-              IVA %
+              {intracom ? "IVA ES % (autorrep.)" : "IVA %"}
             </label>
             <select
               id="vatRate"
@@ -288,7 +334,7 @@ export function ExpenseForm({ expense }: Props) {
           </div>
           <div>
             <label className="label" htmlFor="vatAmount">
-              Cuota IVA
+              {intracom ? "Cuota 11 / 37" : "Cuota IVA"}
             </label>
             <input
               id="vatAmount"
@@ -305,7 +351,7 @@ export function ExpenseForm({ expense }: Props) {
 
         <div>
           <label className="label" htmlFor="total">
-            Total
+            {intracom ? "Total factura (pagado al proveedor)" : "Total"}
           </label>
           <input
             id="total"
@@ -327,7 +373,8 @@ export function ExpenseForm({ expense }: Props) {
             onChange={(e) => setDeductible(e.target.checked)}
             className="rounded border-line"
           />
-          Deducible (IVA soportado y gasto en modelo 130)
+          Deducible (gasto en modelo 130
+          {intracom ? "; AIB en 303" : " e IVA soportado en 303"})
         </label>
 
         <div>
