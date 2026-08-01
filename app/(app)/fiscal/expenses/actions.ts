@@ -41,19 +41,26 @@ function parseExpenseForm(formData: FormData) {
   const vatOperationType = parseExpenseVatOperationType(
     formData.get("vatOperationType")
   );
-  const vatRate =
+  const intracom = isExpenseIntracom(vatOperationType);
+  let vatRate =
     parseFloat(String(formData.get("vatRate") ?? "21").replace(",", ".")) || 0;
+  // Intracom nunca a 0 %: hace falta tipo español para casillas 10/11 y 36/37
+  if (intracom && vatRate <= 0) vatRate = 21;
   const vatAmountRaw = String(formData.get("vatAmount") ?? "").trim();
   const vatAmount = vatAmountRaw
     ? parseFloat(vatAmountRaw.replace(",", ".")) || 0
     : round2(subtotal * (vatRate / 100));
+  const resolvedVatAmount =
+    intracom && vatAmount <= 0
+      ? round2(subtotal * (vatRate / 100))
+      : vatAmount;
   const totalRaw = String(formData.get("total") ?? "").trim();
   // Intracom: lo pagado al proveedor suele ser la base (ISP); la cuota 11/37 es autorrepercutida
   const total = totalRaw
     ? parseFloat(totalRaw.replace(",", ".")) || 0
-    : isExpenseIntracom(vatOperationType)
+    : intracom
       ? round2(subtotal)
-      : round2(subtotal + vatAmount);
+      : round2(subtotal + resolvedVatAmount);
 
   const issueDateRaw = String(formData.get("issueDate") ?? "").trim();
   return {
@@ -68,8 +75,8 @@ function parseExpenseForm(formData: FormData) {
     vatOperationType,
     subtotal,
     vatRate,
-    vatAmount,
-    total,
+    vatAmount: resolvedVatAmount,
+    total: intracom ? round2(subtotal) : total,
     deductible:
       formData.get("deductible") === "on" ||
       formData.get("deductible") === "1",
@@ -168,17 +175,21 @@ export type ExpenseDraftInput = {
 function fromDraftInput(input: ExpenseDraftInput): ExpenseWriteData {
   const subtotal = round2(Math.max(0, Number(input.subtotal) || 0));
   const vatOperationType = parseExpenseVatOperationType(input.vatOperationType);
-  const vatRate = Number(input.vatRate) || 0;
-  const vatAmount =
+  const intracom = isExpenseIntracom(vatOperationType);
+  let vatRate = Number(input.vatRate) || 0;
+  if (intracom && vatRate <= 0) vatRate = 21;
+  let vatAmount =
     input.vatAmount != null
       ? round2(Math.max(0, Number(input.vatAmount) || 0))
       : round2(subtotal * (vatRate / 100));
-  const total =
-    input.total != null
+  if (intracom && vatAmount <= 0) {
+    vatAmount = round2(subtotal * (vatRate / 100));
+  }
+  const total = intracom
+    ? subtotal
+    : input.total != null
       ? round2(Math.max(0, Number(input.total) || 0))
-      : isExpenseIntracom(vatOperationType)
-        ? subtotal
-        : round2(subtotal + vatAmount);
+      : round2(subtotal + vatAmount);
   const issueDateRaw = String(input.issueDate ?? "").trim();
 
   return {

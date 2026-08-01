@@ -421,10 +421,12 @@ export function ExpenseBatchReview() {
                   />
                 </div>
                 <div>
-                  <label className="label">IVA %</label>
+                  <label className="label">
+                    {intracom ? "Tipo IVA español" : "IVA %"}
+                  </label>
                   <select
                     className="input"
-                    value={row.vatRate}
+                    value={intracom && row.vatRate <= 0 ? 21 : row.vatRate}
                     disabled={locked}
                     onChange={(e) =>
                       patchRow(row.localId, {
@@ -432,11 +434,13 @@ export function ExpenseBatchReview() {
                       })
                     }
                   >
-                    {VAT_RATES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}%
-                      </option>
-                    ))}
+                    {(intracom ? VAT_RATES.filter((r) => r > 0) : VAT_RATES).map(
+                      (r) => (
+                        <option key={r} value={r}>
+                          {r}%
+                        </option>
+                      )
+                    )}
                   </select>
                 </div>
                 <div>

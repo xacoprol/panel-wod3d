@@ -74,15 +74,24 @@ export function ExpenseForm({ expense }: Props) {
   const [homeOfficeTip, setHomeOfficeTip] = useState<string | null>(null);
 
   const intracom = isExpenseIntracom(vatOperationType);
+  const rateOptions = intracom
+    ? VAT_RATES.filter((r) => r > 0)
+    : VAT_RATES;
+  const effectiveVatRate =
+    intracom && vatRate <= 0 ? 21 : vatRate;
   const vatAmount = useMemo(
-    () => Math.round(subtotal * (vatRate / 100) * 100) / 100,
-    [subtotal, vatRate]
+    () => Math.round(subtotal * (effectiveVatRate / 100) * 100) / 100,
+    [subtotal, effectiveVatRate]
   );
   const total = useMemo(
     () =>
       Math.round((intracom ? subtotal : subtotal + vatAmount) * 100) / 100,
     [subtotal, vatAmount, intracom]
   );
+
+  useEffect(() => {
+    if (intracom && vatRate <= 0) setVatRate(21);
+  }, [intracom, vatRate]);
 
   function applyDraft(draft: ParsedExpenseDraft) {
     setIssueDate(draft.issueDate);
@@ -290,9 +299,10 @@ export function ExpenseForm({ expense }: Props) {
           </select>
           {intracom ? (
             <p className="mt-1 text-xs text-ink-muted">
-              ISP: base = importe factura UE. El IVA % es el español a
-              autorrepercutir (casillas 10/11 y 36/37 del 303); no lo pagas al
-              proveedor.
+              Bambu y similares: en la factura UE no viene IVA español (pagas
+              solo la base). Aquí pones esa base y eliges <strong>21 %</strong>{" "}
+              para que el 303 declare la misma cuota en 10/11 (devengo) y 36/37
+              (deducción): neto IVA = 0. No es un cobro extra al proveedor.
             </p>
           ) : null}
         </div>
@@ -300,7 +310,7 @@ export function ExpenseForm({ expense }: Props) {
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="label" htmlFor="subtotal">
-              Base imponible
+              {intracom ? "Importe factura UE (base)" : "Base imponible"}
             </label>
             <input
               id="subtotal"
@@ -316,16 +326,16 @@ export function ExpenseForm({ expense }: Props) {
           </div>
           <div>
             <label className="label" htmlFor="vatRate">
-              {intracom ? "IVA ES % (autorrep.)" : "IVA %"}
+              {intracom ? "Tipo IVA español" : "IVA %"}
             </label>
             <select
               id="vatRate"
               name="vatRate"
               className="input"
-              value={vatRate}
+              value={effectiveVatRate}
               onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)}
             >
-              {VAT_RATES.map((r) => (
+              {rateOptions.map((r) => (
                 <option key={r} value={r}>
                   {r}%
                 </option>
@@ -334,7 +344,7 @@ export function ExpenseForm({ expense }: Props) {
           </div>
           <div>
             <label className="label" htmlFor="vatAmount">
-              {intracom ? "Cuota 11 / 37" : "Cuota IVA"}
+              {intracom ? "Cuota a declarar en el 303" : "Cuota IVA"}
             </label>
             <input
               id="vatAmount"
@@ -351,7 +361,7 @@ export function ExpenseForm({ expense }: Props) {
 
         <div>
           <label className="label" htmlFor="total">
-            {intracom ? "Total factura (pagado al proveedor)" : "Total"}
+            {intracom ? "Lo que pagas a Bambu / proveedor" : "Total"}
           </label>
           <input
             id="total"
