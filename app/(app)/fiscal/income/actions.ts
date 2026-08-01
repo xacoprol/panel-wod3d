@@ -317,3 +317,26 @@ export async function deleteMarketplaceIncome(id: string) {
   revalidatePath("/fiscal/income");
   redirect("/fiscal/income");
 }
+
+/** Borrado múltiple — deleteMany es seguro con PrismaNeonHTTP. */
+export async function deleteMarketplaceIncomes(ids: string[]) {
+  await requireAuth();
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return { deleted: 0 };
+
+  // Chunks por si hay muchas filas
+  let deleted = 0;
+  for (let i = 0; i < unique.length; i += 200) {
+    const chunk = unique.slice(i, i + 200);
+    const result = await prisma.marketplaceIncome.deleteMany({
+      where: { id: { in: chunk } },
+    });
+    deleted += result.count;
+  }
+
+  revalidatePath("/fiscal");
+  revalidatePath("/fiscal/income");
+  revalidatePath("/fiscal/303");
+  revalidatePath("/fiscal/130");
+  return { deleted };
+}

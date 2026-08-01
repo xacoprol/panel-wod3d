@@ -1,50 +1,82 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import type { Prisma } from "@prisma/client";
 import { InlineSkeleton } from "@/components/ui/PageSkeleton";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate } from "@/lib/calculations";
 import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
 import { LiveSearch } from "@/components/ui/LiveSearch";
 import { MarketplaceIncomeDropZone } from "@/components/fiscal/MarketplaceIncomeDropZone";
+import { MarketplaceIncomeFilters } from "@/components/fiscal/MarketplaceIncomeFilters";
+import { MarketplaceIncomeTable } from "@/components/fiscal/MarketplaceIncomeTable";
 import { ShopifySyncCard } from "@/components/fiscal/ShopifySyncCard";
 import { shopifyConfiguredHint } from "@/lib/shopify-client";
-import { deleteMarketplaceIncome } from "./actions";
-
-const VAT_LABEL: Record<string, string> = {
-  TAXABLE: "Con IVA",
-  EXEMPT: "Sin IVA",
-  MARKETPLACE_COLLECTED: "OSS marketplace",
-};
-
-const CHANNEL_LABEL: Record<string, string> = {
-  AMAZON: "Amazon",
-  SHOPIFY: "Shopify",
-};
 
 export default async function MarketplaceIncomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    page?: string;
+    channel?: string;
+    vat?: string;
+    year?: string;
+    month?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const query = sp.q?.trim();
   const page = parsePage(sp.page);
+  const channel = (sp.channel ?? "").toUpperCase();
+  const vat = (sp.vat ?? "").toUpperCase();
+  const year = parseInt(sp.year ?? "", 10);
+  const month = parseInt(sp.month ?? "", 10);
 
-  const where = query
-    ? {
-        OR: [
-          { externalRef: { contains: query, mode: "insensitive" as const } },
-          { orderId: { contains: query, mode: "insensitive" as const } },
-          { sku: { contains: query, mode: "insensitive" as const } },
-          { description: { contains: query, mode: "insensitive" as const } },
-          { channel: { contains: query, mode: "insensitive" as const } },
-        ],
-      }
+  const and: Prisma.MarketplaceIncomeWhereInput[] = [];
+
+  if (query) {
+    and.push({
+      OR: [
+        { externalRef: { contains: query, mode: "insensitive" } },
+        { orderId: { contains: query, mode: "insensitive" } },
+        { sku: { contains: query, mode: "insensitive" } },
+        { description: { contains: query, mode: "insensitive" } },
+        { channel: { contains: query, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (channel === "AMAZON" || channel === "SHOPIFY") {
+    and.push({ channel });
+  }
+  if (
+    vat === "TAXABLE" ||
+    vat === "EXEMPT" ||
+    vat === "MARKETPLACE_COLLECTED"
+  ) {
+    and.push({ vatStatus: vat });
+  }
+  if (Number.isFinite(year) && year >= 2000 && year <= 2100) {
+    if (Number.isFinite(month) && month >= 1 && month <= 12) {
+      const from = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      const to = new Date(year, month, 0, 23, 59, 59, 999);
+      and.push({ issueDate: { gte: from, lte: to } });
+    } else {
+      const from = new Date(year, 0, 1, 0, 0, 0, 0);
+      const to = new Date(year, 11, 31, 23, 59, 59, 999);
+      and.push({ issueDate: { gte: from, lte: to } });
+    }
+  }
+
+  const where: Prisma.MarketplaceIncomeWhereInput | undefined = and.length
+    ? { AND: and }
     : undefined;
 
   const total = await prisma.marketplaceIncome.count({ where });
   const meta = paginationMeta(total, page);
+
+  const nowY = new Date().getFullYear();
+  const filterYears = [nowY + 1, nowY, nowY - 1, nowY - 2];
+
   const [rows, settings] = await Promise.all([
     prisma.marketplaceIncome.findMany({
       where,
@@ -69,6 +101,30 @@ export default async function MarketplaceIncomePage({
     shopifyClientSecret: settings?.shopifyClientSecret ?? null,
     shopifyAccessToken: settings?.shopifyAccessToken ?? null,
   });
+
+  const listRows = rows.map((r) => ({
+    id: r.id,
+    issueDate: r.issueDate.toISOString(),
+    channel: r.channel,
+    transactionType: r.transactionType,
+    externalRef: r.externalRef,
+    sku: r.sku,
+    vatStatus: r.vatStatus,
+    vatRate: r.vatRate,
+    subtotal: Number(r.subtotal),
+    vatAmount: Number(r.vatAmount),
+  }));
+
+  const filterParams = {
+    q: query,
+    channel: channel || undefined,
+    vat: vat || undefined,
+    year: Number.isFinite(year) ? String(year) : undefined,
+    month:
+      Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12
+        ? String(month)
+        : undefined,
+  };
 
   return (
     <div className="space-y-6">
@@ -95,89 +151,27 @@ export default async function MarketplaceIncomePage({
 
       <MarketplaceIncomeDropZone />
 
-      <Suspense fallback={<InlineSkeleton />}>
-        <LiveSearch placeholder="Buscar factura Amazon, pedido, SKU…" />
-      </Suspense>
-
-      <div className="card-panel overflow-x-auto">
-        <table className="w-full min-w-[44rem] text-left text-sm">
-          <thead className="border-b border-line bg-line/20 text-xs uppercase tracking-wide text-ink-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Canal</th>
-              <th className="px-4 py-3 font-medium">Ref.</th>
-              <th className="hidden px-4 py-3 font-medium sm:table-cell">
-                IVA
-              </th>
-              <th className="px-4 py-3 text-right font-medium">Base</th>
-              <th className="px-4 py-3 text-right font-medium">Cuota</th>
-              <th className="sticky right-0 z-10 bg-line/20 px-2 py-3 text-right font-medium sm:static sm:bg-transparent sm:px-4">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-ink-muted"
-                >
-                  No hay ingresos importados
-                  {query ? " con ese criterio" : ""}. Sube el CSV de Amazon
-                  arriba.
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => (
-                <tr key={r.id} className="group border-b border-line/50">
-                  <td className="px-4 py-3 text-ink-muted">
-                    {formatDate(r.issueDate)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {CHANNEL_LABEL[r.channel] ?? r.channel}
-                    <p className="text-xs text-ink-muted">
-                      {r.transactionType}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs">
-                      {r.externalRef ?? "—"}
-                    </span>
-                    {r.sku ? (
-                      <p className="text-xs text-ink-muted">{r.sku}</p>
-                    ) : null}
-                  </td>
-                  <td className="hidden px-4 py-3 text-ink-muted sm:table-cell">
-                    {VAT_LABEL[r.vatStatus] ?? r.vatStatus}
-                    {r.vatStatus === "TAXABLE" ? ` ${r.vatRate}%` : ""}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(Number(r.subtotal))}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(Number(r.vatAmount))}
-                  </td>
-                  <td className="sticky right-0 z-10 bg-bg-elevated px-2 py-3 group-hover:bg-accent-soft/20 sm:static sm:bg-transparent sm:px-4">
-                    <form action={deleteMarketplaceIncome.bind(null, r.id)}>
-                      <button
-                        type="submit"
-                        className="btn-ghost px-2 py-1 text-xs text-danger"
-                      >
-                        Borrar
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="space-y-3">
+        <Suspense fallback={<InlineSkeleton />}>
+          <LiveSearch placeholder="Buscar factura Amazon, pedido, SKU…" />
+        </Suspense>
+        <Suspense fallback={<InlineSkeleton />}>
+          <MarketplaceIncomeFilters years={filterYears} />
+        </Suspense>
       </div>
+
+      <MarketplaceIncomeTable
+        rows={listRows}
+        emptyHint={
+          query || channel || vat || Number.isFinite(year)
+            ? "No hay ingresos con estos filtros."
+            : "No hay ingresos importados. Sube un CSV o sincroniza Shopify."
+        }
+      />
 
       <Pagination
         basePath="/fiscal/income"
-        params={{ q: query }}
+        params={filterParams}
         page={meta.page}
         totalPages={meta.totalPages}
         total={meta.total}
