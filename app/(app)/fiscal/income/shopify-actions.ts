@@ -80,7 +80,7 @@ export async function testShopifyConnectionAction(): Promise<
   if (!creds) {
     return {
       ok: false,
-      error: "Falta tienda o token (Ajustes o variables de entorno).",
+      error: "Falta tienda o Client ID/Secret (Ajustes · Dev Dashboard).",
     };
   }
   return testShopifyConnection(creds);
