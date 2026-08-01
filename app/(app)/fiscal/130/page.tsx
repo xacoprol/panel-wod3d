@@ -54,9 +54,11 @@ export default async function Modelo130Page({
       />
       <ModeloDraft title="Casillas orientativas" model="130" summary={summary} />
       <p className="text-xs text-ink-muted">
-        Ingresos = bases de facturas emitidas (sin IVA). Gastos = bases de
-        gastos marcados como deducibles. El 20 % es el porcentaje general del
-        pago a cuenta; las retenciones de tus facturas se restan.
+        El 130 es <strong>acumulado desde el 1 de enero</strong> hasta el fin
+        del trimestre (como pide AEAT). Casilla 05 = pagos fraccionados ya
+        calculados en trimestres anteriores del mismo año (solo importes a
+        ingresar). Casilla 06 = retenciones YTD. El 303 sigue siendo solo del
+        trimestre.
       </p>
     </div>
   );

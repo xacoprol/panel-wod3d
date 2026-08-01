@@ -270,13 +270,13 @@ export default async function FiscalAnnualPage({
           incomplete={missingExpenses}
         />
         <AnnualModeloDraft
-          title="IRPF anual (agregado 130)"
-          how="20 % del rendimiento neto anual − retenciones. La suma de los 130 trimestrales puede diferir porque el 20 % se aplica por trimestre."
+          title="IRPF anual (130 · 4T acumulado)"
+          how="Casillas del 4T: acumulado desde 1 ene, con pagos previos del año en casilla 05. El total de pagos fraccionados es la suma de resultados positivos de cada trimestre."
           boxes={summary.modelo130.boxes}
           result={summary.irpfPaymentsYear}
-          resultLabel="Suma pagos fraccionados (4 trimestres)"
+          resultLabel="Suma a ingresar en los 4 trimestres (solo positivos)"
           incomplete={missingExpenses}
-          altResultNote={`Agregado anual casilla 07: ${formatCurrency(summary.modelo130.result)}`}
+          altResultNote={`Casilla 07 del 4T: ${formatCurrency(summary.modelo130.result)}`}
         />
       </div>
     </div>

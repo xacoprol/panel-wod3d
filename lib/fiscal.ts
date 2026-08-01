@@ -69,7 +69,7 @@ export type FiscalYearSummary = {
   modelo390: ModeloBoxes;
   /** Suma de resultados 303 de cada trimestre (a ingresar neto del año) */
   ivaNetYear: number;
-  /** Suma de resultados 130 de cada trimestre */
+  /** Suma de ingresos a cuenta 130 (solo resultados positivos de cada T) */
   irpfPaymentsYear: number;
   quarters: FiscalQuarterSlice[];
 };
@@ -344,22 +344,25 @@ function buildModelo390(
 function buildModelo130(
   incomeBase: number,
   expenseBase: number,
-  irpfWithheld: number
+  irpfWithheld: number,
+  priorPayments = 0
 ): ModeloBoxes {
   const rendimiento = round2(incomeBase - expenseBase);
   const pago20 = round2(Math.max(0, rendimiento) * 0.2);
-  const resultado130 = round2(pago20 - irpfWithheld);
+  const prior = round2(Math.max(0, priorPayments));
+  const retenciones = round2(Math.max(0, irpfWithheld));
+  const resultado130 = round2(pago20 - prior - retenciones);
 
   return {
     boxes: [
       {
         code: "01",
-        label: "Ingresos computables (facturas + marketplace)",
+        label: "Ingresos computables (desde 1 de enero)",
         value: incomeBase,
       },
       {
         code: "02",
-        label: "Gastos deducibles (bases)",
+        label: "Gastos deducibles (desde 1 de enero)",
         value: expenseBase,
       },
       {
@@ -369,22 +372,57 @@ function buildModelo130(
       },
       {
         code: "04",
-        label: "20 % del rendimiento neto",
+        label: "20 % del rendimiento neto positivo",
         value: pago20,
       },
       {
         code: "05",
-        label: "Retenciones soportadas (IRPF en facturas)",
-        value: irpfWithheld,
+        label: "Pagos fraccionados anteriores del ejercicio",
+        value: prior,
+      },
+      {
+        code: "06",
+        label: "Retenciones e ingresos a cuenta (desde 1 de enero)",
+        value: retenciones,
       },
       {
         code: "07",
-        label: "Resultado (04 − 05)",
+        label: "Resultado (04 − 05 − 06)",
         value: resultado130,
       },
     ],
     result: resultado130,
   };
+}
+
+/**
+ * Cadena oficial del 130: cada trimestre usa YTD (1 ene → fin T)
+ * y casilla 05 = suma de resultados positivos de trimestres previos.
+ */
+function buildModelo130Chain(
+  year: number,
+  invoices: InvoiceRow[],
+  expenses: ExpenseRow[],
+  marketplace: MarketplaceRow[]
+): Record<FiscalQuarter, ModeloBoxes> {
+  const yearStart = yearRange(year).from;
+  let priorPayments = 0;
+  const out = {} as Record<FiscalQuarter, ModeloBoxes>;
+
+  for (const q of [1, 2, 3, 4] as FiscalQuarter[]) {
+    const { to } = quarterRange(year, q);
+    const agg = aggregateRows(invoices, expenses, marketplace, yearStart, to);
+    const draft = buildModelo130(
+      agg.issued.incomeBase,
+      agg.expenses.base,
+      agg.issued.irpfWithheld,
+      priorPayments
+    );
+    out[q] = draft;
+    priorPayments = round2(priorPayments + Math.max(0, draft.result));
+  }
+
+  return out;
 }
 
 function aggregateRows(
@@ -508,7 +546,8 @@ function aggregateRows(
       total: expenseTotal,
     },
     modelo303: buildModelo303(vatBuckets, expenseVat),
-    modelo130: buildModelo130(incomeBase, expenseBase, irpfWithheld),
+    // Placeholder: el 130 trimestral real se calcula en buildFiscalPeriodSummary / year (YTD + cadena).
+    modelo130: buildModelo130(incomeBase, expenseBase, irpfWithheld, 0),
   };
 }
 
@@ -575,8 +614,14 @@ export async function buildFiscalPeriodSummary(
 ): Promise<FiscalPeriodSummary> {
   const { from, to } = quarterRange(year, quarter);
   const label = `${quarter}T ${year}`;
-  const { invoices, expenses, marketplace } = await fetchFiscalRows(from, to);
-  const agg = aggregateRows(invoices, expenses, marketplace, from, to);
+  // 303 = solo el trimestre; 130 = YTD desde 1 ene (necesita filas de todo el año hasta fin T)
+  const yearStart = yearRange(year).from;
+  const { invoices, expenses, marketplace } = await fetchFiscalRows(
+    yearStart,
+    to
+  );
+  const quarterAgg = aggregateRows(invoices, expenses, marketplace, from, to);
+  const chain = buildModelo130Chain(year, invoices, expenses, marketplace);
 
   return {
     year,
@@ -584,7 +629,10 @@ export async function buildFiscalPeriodSummary(
     from,
     to,
     label,
-    ...agg,
+    issued: quarterAgg.issued,
+    expenses: quarterAgg.expenses,
+    modelo303: quarterAgg.modelo303,
+    modelo130: chain[quarter],
   };
 }
 
@@ -598,6 +646,7 @@ export async function buildFiscalYearSummary(
   const { from, to } = yearRange(year);
   const { invoices, expenses, marketplace } = await fetchFiscalRows(from, to);
   const yearAgg = aggregateRows(invoices, expenses, marketplace, from, to);
+  const chain130 = buildModelo130Chain(year, invoices, expenses, marketplace);
 
   const quarters: FiscalQuarterSlice[] = ([1, 2, 3, 4] as FiscalQuarter[]).map(
     (q) => {
@@ -616,7 +665,7 @@ export async function buildFiscalYearSummary(
         expensesBase: agg.expenses.base,
         irpfWithheld: agg.issued.irpfWithheld,
         modelo303Result: agg.modelo303.result,
-        modelo130Result: agg.modelo130.result,
+        modelo130Result: chain130[q].result,
       };
     }
   );
@@ -624,8 +673,12 @@ export async function buildFiscalYearSummary(
   const ivaNetYear = round2(
     quarters.reduce((s, q) => s + q.modelo303Result, 0)
   );
+  // Suma de lo a ingresar por trimestre (solo positivos, coherente con casilla 05)
   const irpfPaymentsYear = round2(
-    quarters.reduce((s, q) => s + q.modelo130Result, 0)
+    ([1, 2, 3, 4] as FiscalQuarter[]).reduce(
+      (s, q) => s + Math.max(0, chain130[q].result),
+      0
+    )
   );
 
   return {
@@ -636,7 +689,7 @@ export async function buildFiscalYearSummary(
     issued: yearAgg.issued,
     expenses: yearAgg.expenses,
     modelo303: yearAgg.modelo303,
-    modelo130: yearAgg.modelo130,
+    modelo130: chain130[4],
     modelo390: buildModelo390(yearAgg.issued, yearAgg.expenses, ivaNetYear),
     ivaNetYear,
     irpfPaymentsYear,

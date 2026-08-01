@@ -10,7 +10,12 @@ type Props = {
 
 export function ModeloDraft({ title, model, summary }: Props) {
   const draft = model === "303" ? summary.modelo303 : summary.modelo130;
-  const missingExpenses = summary.expenses.count === 0;
+  const expensesYtd =
+    model === "130"
+      ? (draft.boxes.find((b) => b.code === "02")?.value ?? 0) === 0
+      : false;
+  const missingExpenses =
+    model === "303" ? summary.expenses.count === 0 : expensesYtd;
   const resultPositive = draft.result >= 0;
 
   const resultTitle = resultPositive
@@ -19,8 +24,8 @@ export function ModeloDraft({ title, model, summary }: Props) {
 
   const how =
     model === "303"
-      ? "IVA de facturas W3D + Amazon taxable − IVA de gastos deducibles."
-      : "20 % de (ingresos W3D + marketplace − gastos) − retenciones en facturas.";
+      ? "IVA de facturas W3D + Amazon taxable − IVA de gastos deducibles (solo este trimestre)."
+      : "Acumulado desde el 1 de enero: 20 % del rendimiento neto − pagos 130 previos del año − retenciones. Casillas alineadas con el modelo oficial.";
 
   return (
     <section className="card-panel space-y-4 p-5 sm:p-6">
@@ -28,16 +33,16 @@ export function ModeloDraft({ title, model, summary }: Props) {
         <h2 className="form-section-title">{title}</h2>
         <p className="form-section-hint">
           Periodo {summary.label}. Cálculo automático con lo que hay en el
-          panel ({how}) Úsalo para rellenar el modelo en la AEAT; no es el
-          modelo oficial presentado.
+          panel ({how}) Úsalo como guía para la AEAT; no sustituye el modelo
+          oficial presentado.
         </p>
       </div>
 
       {missingExpenses ? (
         <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-warning">
-          Aún no hay gastos en este trimestre. Sin ellos el IVA soportado y los
-          gastos del 130 van a 0, y el importe a ingresar sale más alto de lo
-          real.{" "}
+          {model === "130"
+            ? "Aún no hay gastos deducibles en el acumulado del año hasta este trimestre. Sin ellos el 130 sale más alto de lo real."
+            : "Aún no hay gastos en este trimestre. Sin ellos el IVA soportado va a 0, y el importe a ingresar sale más alto de lo real."}{" "}
           <Link href="/fiscal/expenses" className="font-medium underline">
             Registrar gastos
           </Link>
