@@ -52,6 +52,11 @@ model CompanySettings {
   reminderSubject    String  @default("Recordatorio: factura {{number}} pendiente")
   reminderBody       String  @default("Hola {{contact}},\n\nLe recordamos que la factura {{number}} por {{remaining}} vence el {{dueDate}}.\n\nUn saludo,\n{{company}}")
 
+  // Shopify Admin API (ingresos marketplace)
+  shopifyShop         String? // tienda.myshopify.com o solo el subdominio
+  shopifyAccessToken  String? // shpat_… (app personalizada); también SHOPIFY_ADMIN_ACCESS_TOKEN en env
+  shopifyLastSyncAt   DateTime?
+
   // UX theme (CSS variables)
   themeBg           String @default("#F3F1F8")
   themeBgElevated   String @default("#FFFFFF")

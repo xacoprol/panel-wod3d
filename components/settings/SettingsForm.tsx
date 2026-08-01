@@ -343,6 +343,70 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
 
         <section className="card-panel space-y-4 p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            Shopify · sync pedidos
+          </h2>
+          <p className="text-xs text-ink-muted">
+            App personalizada en Shopify Admin → Settings → Apps → Develop apps →
+            scopes <code className="font-mono">read_orders</code>. Usa el
+            dominio <span className="font-mono">tienda.myshopify.com</span>.
+            También puedes poner <span className="font-mono">SHOPIFY_SHOP</span>{" "}
+            y{" "}
+            <span className="font-mono">SHOPIFY_ADMIN_ACCESS_TOKEN</span> en
+            Vercel.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="shopifyShop">
+                Tienda (.myshopify.com)
+              </label>
+              <input
+                id="shopifyShop"
+                name="shopifyShop"
+                className="input font-mono"
+                defaultValue={settings.shopifyShop ?? ""}
+                placeholder="wod3d.myshopify.com"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="shopifyAccessToken">
+                Admin API access token
+              </label>
+              <input
+                id="shopifyAccessToken"
+                name="shopifyAccessToken"
+                type="password"
+                className="input font-mono"
+                placeholder={
+                  settings.shopifyAccessToken
+                    ? "•••••••• (dejar vacío para no cambiar)"
+                    : "shpat_…"
+                }
+                autoComplete="new-password"
+              />
+              {settings.shopifyAccessToken ? (
+                <label className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
+                  <input
+                    type="checkbox"
+                    name="clearShopifyToken"
+                    value="1"
+                    className="rounded border-line"
+                  />
+                  Borrar token guardado
+                </label>
+              ) : null}
+            </div>
+          </div>
+          {settings.shopifyLastSyncAt ? (
+            <p className="text-xs text-ink-muted">
+              Última sync:{" "}
+              {new Date(settings.shopifyLastSyncAt).toLocaleString("es-ES")}
+            </p>
+          ) : null}
+        </section>
+
+        <section className="card-panel space-y-4 p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
             Plantilla de email
           </h2>
           <p className="text-xs text-ink-muted">

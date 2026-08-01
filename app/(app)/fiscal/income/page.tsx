@@ -7,6 +7,8 @@ import { parsePage, paginationMeta } from "@/lib/pagination";
 import { Pagination } from "@/components/ui/Pagination";
 import { LiveSearch } from "@/components/ui/LiveSearch";
 import { MarketplaceIncomeDropZone } from "@/components/fiscal/MarketplaceIncomeDropZone";
+import { ShopifySyncCard } from "@/components/fiscal/ShopifySyncCard";
+import { shopifyConfiguredHint } from "@/lib/shopify-client";
 import { deleteMarketplaceIncome } from "./actions";
 
 const VAT_LABEL: Record<string, string> = {
@@ -43,11 +45,25 @@ export default async function MarketplaceIncomePage({
 
   const total = await prisma.marketplaceIncome.count({ where });
   const meta = paginationMeta(total, page);
-  const rows = await prisma.marketplaceIncome.findMany({
-    where,
-    orderBy: [{ issueDate: "desc" }, { createdAt: "desc" }],
-    skip: meta.skip,
-    take: meta.take,
+  const [rows, settings] = await Promise.all([
+    prisma.marketplaceIncome.findMany({
+      where,
+      orderBy: [{ issueDate: "desc" }, { createdAt: "desc" }],
+      skip: meta.skip,
+      take: meta.take,
+    }),
+    prisma.companySettings.findFirst({
+      select: {
+        shopifyShop: true,
+        shopifyAccessToken: true,
+        shopifyLastSyncAt: true,
+      },
+    }),
+  ]);
+
+  const shopifyHint = shopifyConfiguredHint({
+    shopifyShop: settings?.shopifyShop ?? null,
+    shopifyAccessToken: settings?.shopifyAccessToken ?? null,
   });
 
   return (
@@ -61,11 +77,17 @@ export default async function MarketplaceIncomePage({
             Ingresos marketplace
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Amazon (VAT Tax Report CSV) y Shopify (CSV por país, Informe IVA o
-            resumen del chat) · no usan la serie W3D
+            Amazon (CSV) y Shopify (API, CSV o Informe IVA) · no usan la serie
+            W3D
           </p>
         </div>
       </div>
+
+      <ShopifySyncCard
+        ready={shopifyHint.ready}
+        shop={shopifyHint.shop}
+        lastSyncAt={settings?.shopifyLastSyncAt?.toISOString() ?? null}
+      />
 
       <MarketplaceIncomeDropZone />
 

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
 import { normalizeTaxId, taxIdErrorMessage } from "@/lib/nif";
 import { DEFAULT_THEME, sanitizeHex } from "@/lib/theme";
+import { normalizeShopifyShop } from "@/lib/shopify-client";
 
 export type SettingsState = { error?: string; success?: boolean };
 
@@ -126,11 +127,39 @@ export async function updateSettings(
     ),
   };
 
+  const shopRaw = String(formData.get("shopifyShop") ?? "").trim();
+  const shopNormalized = shopRaw ? normalizeShopifyShop(shopRaw) : null;
+  if (shopRaw && !shopNormalized) {
+    return {
+      error:
+        "Tienda Shopify: usa el dominio admin (ej. wod3d.myshopify.com), no el .com público.",
+    };
+  }
+  const tokenRaw = String(formData.get("shopifyAccessToken") ?? "").trim();
+  const clearToken = formData.get("clearShopifyToken") === "1";
+
   const existing = await prisma.companySettings.findFirst();
+  const shopifyData: {
+    shopifyShop: string | null;
+    shopifyAccessToken?: string | null;
+  } = {
+    shopifyShop: shopNormalized,
+  };
+  if (clearToken) {
+    shopifyData.shopifyAccessToken = null;
+  } else if (tokenRaw) {
+    shopifyData.shopifyAccessToken = tokenRaw;
+  }
+
   if (existing) {
-    await prisma.companySettings.update({ where: { id: existing.id }, data });
+    await prisma.companySettings.update({
+      where: { id: existing.id },
+      data: { ...data, ...shopifyData },
+    });
   } else {
-    await prisma.companySettings.create({ data });
+    await prisma.companySettings.create({
+      data: { ...data, ...shopifyData },
+    });
   }
 
   revalidatePath("/", "layout");
