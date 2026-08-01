@@ -335,16 +335,30 @@ export async function fetchShopifyOrders(
 ): Promise<ShopifyOrder[]> {
   const parts: string[] = [];
   if (params.updatedAtMin) {
-    parts.push(`updated_at:>=${params.updatedAtMin}`);
+    parts.push(`updated_at:>='${params.updatedAtMin}'`);
   } else {
-    if (params.createdAtMin) parts.push(`created_at:>=${params.createdAtMin}`);
-    if (params.createdAtMax) parts.push(`created_at:<=${params.createdAtMax}`);
+    if (params.createdAtMin) {
+      parts.push(`created_at:>='${params.createdAtMin}'`);
+    }
+    if (params.createdAtMax) {
+      parts.push(`created_at:<='${params.createdAtMax}'`);
+    }
   }
   const queryFilter = parts.join(" ");
 
-  const query = `
-    query OrdersPage($cursor: String, $query: String) {
-      orders(first: 50, after: $cursor, query: $query, sortKey: CREATED_AT) {
+  // Query sin variable $query vacía (Shopify a veces falla con null)
+  const query = queryFilter
+    ? `
+    query OrdersPage($cursor: String, $q: String!) {
+      orders(first: 50, after: $cursor, query: $q, sortKey: CREATED_AT) {
+        pageInfo { hasNextPage endCursor }
+        nodes { ${ORDER_NODE_FIELDS} }
+      }
+    }
+  `
+    : `
+    query OrdersPage($cursor: String) {
+      orders(first: 50, after: $cursor, sortKey: CREATED_AT) {
         pageInfo { hasNextPage endCursor }
         nodes { ${ORDER_NODE_FIELDS} }
       }
@@ -363,21 +377,31 @@ export async function fetchShopifyOrders(
       );
     }
     type PageData = {
-      orders: {
+      orders?: {
         pageInfo: { hasNextPage: boolean; endCursor?: string | null };
         nodes: GqlOrderNode[];
-      };
+      } | null;
     };
-    const data: PageData = await shopifyGraphql<PageData>(creds, query, {
-      cursor,
-      query: queryFilter || null,
-    });
-    for (const node of data.orders.nodes) {
+    const variables: Record<string, unknown> = { cursor };
+    if (queryFilter) variables.q = queryFilter;
+
+    const data: PageData = await shopifyGraphql<PageData>(
+      creds,
+      query,
+      variables
+    );
+    const conn = data.orders;
+    if (!conn) {
+      throw new Error(
+        "Shopify no devolvió pedidos. ¿Scope read_orders activo e app instalada?"
+      );
+    }
+    for (const node of conn.nodes ?? []) {
       const mapped = mapGqlOrder(node);
       if (mapped) all.push(mapped);
     }
-    if (!data.orders.pageInfo.hasNextPage) break;
-    cursor = data.orders.pageInfo.endCursor ?? null;
+    if (!conn.pageInfo.hasNextPage) break;
+    cursor = conn.pageInfo.endCursor ?? null;
     if (!cursor) break;
   }
 

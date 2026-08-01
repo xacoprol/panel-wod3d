@@ -34,14 +34,22 @@ export function ShopifySyncCard({ ready, shop, lastSyncAt }: Props) {
     setMessage(null);
     setError(null);
     startTransition(async () => {
-      const res = await fn();
-      if (res.ok) {
-        if ("message" in res && res.message) setMessage(res.message);
-        else if ("shopName" in res && res.shopName)
-          setMessage(`Conectado: ${res.shopName}`);
-        else setMessage("OK");
-      } else {
-        setError(res.error);
+      try {
+        const res = await fn();
+        if (res.ok) {
+          if ("message" in res && res.message) setMessage(res.message);
+          else if ("shopName" in res && res.shopName)
+            setMessage(`Conectado: ${res.shopName}`);
+          else setMessage("OK");
+        } else {
+          setError(res.error);
+        }
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Error del servidor al sincronizar. Recarga e inténtalo de nuevo."
+        );
       }
     });
   }

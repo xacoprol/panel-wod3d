@@ -27,49 +27,65 @@ export async function syncShopifyMonthAction(
   month: number
 ): Promise<ShopifySyncActionResult> {
   await requireAuth();
-  const y = Math.trunc(year);
-  const m = Math.trunc(month);
-  if (y < 2020 || y > 2100 || m < 1 || m > 12) {
-    return { ok: false, error: "Periodo no válido" };
+  try {
+    const y = Math.trunc(year);
+    const m = Math.trunc(month);
+    if (y < 2020 || y > 2100 || m < 1 || m > 12) {
+      return { ok: false, error: "Periodo no válido" };
+    }
+    const { from, to } = monthRange(y, m);
+    const result = await syncShopifyOrders({ from, to, mode: "created" });
+    if (!result.ok) return result;
+
+    revalidatePath("/fiscal");
+    revalidatePath("/fiscal/income");
+    revalidatePath("/fiscal/303");
+    revalidatePath("/settings");
+
+    return {
+      ok: true,
+      message: `Shopify ${m}/${y}: ${result.created} nuevos, ${result.updated} actualizados (${result.fetched} pedidos leídos).`,
+      created: result.created,
+      updated: result.updated,
+      fetched: result.fetched,
+    };
+  } catch (e) {
+    console.error("[syncShopifyMonthAction]", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error al sincronizar",
+    };
   }
-  const { from, to } = monthRange(y, m);
-  const result = await syncShopifyOrders({ from, to, mode: "created" });
-  if (!result.ok) return result;
-
-  revalidatePath("/fiscal");
-  revalidatePath("/fiscal/income");
-  revalidatePath("/fiscal/303");
-  revalidatePath("/settings");
-
-  return {
-    ok: true,
-    message: `Shopify ${m}/${y}: ${result.created} nuevos, ${result.updated} actualizados (${result.fetched} pedidos leídos).`,
-    created: result.created,
-    updated: result.updated,
-    fetched: result.fetched,
-  };
 }
 
 export async function syncShopifyRecentAction(
   days = 60
 ): Promise<ShopifySyncActionResult> {
   await requireAuth();
-  const { from, to } = lastDaysRange(days);
-  const result = await syncShopifyOrders({ from, to, mode: "updated" });
-  if (!result.ok) return result;
+  try {
+    const { from, to } = lastDaysRange(days);
+    const result = await syncShopifyOrders({ from, to, mode: "updated" });
+    if (!result.ok) return result;
 
-  revalidatePath("/fiscal");
-  revalidatePath("/fiscal/income");
-  revalidatePath("/fiscal/303");
-  revalidatePath("/settings");
+    revalidatePath("/fiscal");
+    revalidatePath("/fiscal/income");
+    revalidatePath("/fiscal/303");
+    revalidatePath("/settings");
 
-  return {
-    ok: true,
-    message: `Shopify (últimos ${days} días): ${result.created} nuevos, ${result.updated} actualizados (${result.fetched} pedidos).`,
-    created: result.created,
-    updated: result.updated,
-    fetched: result.fetched,
-  };
+    return {
+      ok: true,
+      message: `Shopify (últimos ${days} días): ${result.created} nuevos, ${result.updated} actualizados (${result.fetched} pedidos).`,
+      created: result.created,
+      updated: result.updated,
+      fetched: result.fetched,
+    };
+  } catch (e) {
+    console.error("[syncShopifyRecentAction]", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error al sincronizar",
+    };
+  }
 }
 
 export async function testShopifyConnectionAction(): Promise<

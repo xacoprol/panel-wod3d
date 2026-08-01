@@ -138,104 +138,105 @@ export async function syncShopifyOrders(options: {
   /** Si true, usa updated_at_min = from (sync incremental) */
   mode?: "created" | "updated";
 }): Promise<ShopifySyncResult | ShopifySyncError> {
-  const creds = await getShopifyCredentials();
-  if (!creds) {
-    return {
-      ok: false,
-      error:
-        "Shopify no configurado. Pon tienda + Client ID/Secret en Ajustes (Dev Dashboard).",
-    };
-  }
-
   const fromDay = options.from.slice(0, 10);
   const toDay = options.to.slice(0, 10);
-  const createdAtMin = `${fromDay}T00:00:00.000Z`;
-  const createdAtMax = `${toDay}T23:59:59.999Z`;
 
-  let orders: ShopifyOrder[];
   try {
-    orders = await fetchShopifyOrders(
+    const creds = await getShopifyCredentials();
+    if (!creds) {
+      return {
+        ok: false,
+        error:
+          "Shopify no configurado. Pon tienda + Client ID/Secret en Ajustes (Dev Dashboard).",
+      };
+    }
+
+    const createdAtMin = `${fromDay}T00:00:00Z`;
+    const createdAtMax = `${toDay}T23:59:59Z`;
+
+    const orders = await fetchShopifyOrders(
       creds,
       options.mode === "updated"
         ? { updatedAtMin: createdAtMin }
         : { createdAtMin, createdAtMax }
     );
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "Error al leer pedidos Shopify",
-    };
-  }
 
-  let created = 0;
-  let updated = 0;
-  let skipped = 0;
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
 
-  for (const order of orders) {
-    const row = mapShopifyOrderToRow(order);
-    if (!row) {
-      skipped++;
-      continue;
+    for (const order of orders) {
+      const row = mapShopifyOrderToRow(order);
+      if (!row) {
+        skipped++;
+        continue;
+      }
+
+      const issueDate = new Date(`${row.issueDate}T12:00:00.000Z`);
+      const existing = await prisma.marketplaceIncome.findUnique({
+        where: {
+          channel_externalKey: {
+            channel: "SHOPIFY",
+            externalKey: row.externalKey,
+          },
+        },
+        select: { id: true },
+      });
+
+      const data = {
+        issueDate,
+        externalRef: row.externalRef,
+        orderId: row.orderId,
+        description: row.description,
+        transactionType: row.transactionType,
+        vatStatus: row.vatStatus,
+        vatRate: row.vatRate,
+        subtotal: row.subtotal,
+        vatAmount: row.vatAmount,
+        total: row.total,
+        shipToCountry: row.shipToCountry,
+        sourceFile: "shopify-api",
+        notes: row.notes,
+      };
+
+      if (existing) {
+        await prisma.marketplaceIncome.update({
+          where: { id: existing.id },
+          data,
+        });
+        updated++;
+      } else {
+        await prisma.marketplaceIncome.create({
+          data: {
+            channel: "SHOPIFY",
+            externalKey: row.externalKey,
+            ...data,
+          },
+        });
+        created++;
+      }
     }
 
-    const issueDate = new Date(`${row.issueDate}T12:00:00.000Z`);
-    const existing = await prisma.marketplaceIncome.findUnique({
-      where: {
-        channel_externalKey: {
-          channel: "SHOPIFY",
-          externalKey: row.externalKey,
-        },
-      },
-      select: { id: true },
+    await prisma.companySettings.updateMany({
+      data: { shopifyLastSyncAt: new Date() },
     });
 
-    const data = {
-      issueDate,
-      externalRef: row.externalRef,
-      orderId: row.orderId,
-      description: row.description,
-      transactionType: row.transactionType,
-      vatStatus: row.vatStatus,
-      vatRate: row.vatRate,
-      subtotal: row.subtotal,
-      vatAmount: row.vatAmount,
-      total: row.total,
-      shipToCountry: row.shipToCountry,
-      sourceFile: "shopify-api",
-      notes: row.notes,
+    return {
+      ok: true,
+      fetched: orders.length,
+      created,
+      updated,
+      skipped,
+      from: fromDay,
+      to: toDay,
     };
-
-    if (existing) {
-      await prisma.marketplaceIncome.update({
-        where: { id: existing.id },
-        data,
-      });
-      updated++;
-    } else {
-      await prisma.marketplaceIncome.create({
-        data: {
-          channel: "SHOPIFY",
-          externalKey: row.externalKey,
-          ...data,
-        },
-      });
-      created++;
-    }
+  } catch (e) {
+    console.error("[shopify-sync]", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error al sincronizar Shopify",
+    };
   }
-
-  await prisma.companySettings.updateMany({
-    data: { shopifyLastSyncAt: new Date() },
-  });
-
-  return {
-    ok: true,
-    fetched: orders.length,
-    created,
-    updated,
-    skipped,
-    from: fromDay,
-    to: toDay,
-  };
 }
 
 /** Rango del mes civil (1–12). */
