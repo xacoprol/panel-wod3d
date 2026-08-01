@@ -217,9 +217,16 @@ export async function syncShopifyOrders(options: {
       }
     }
 
-    await prisma.companySettings.updateMany({
-      data: { shopifyLastSyncAt: new Date() },
+    // No usar updateMany: PrismaNeonHTTP lo envuelve en transacción y falla.
+    const settingsRow = await prisma.companySettings.findFirst({
+      select: { id: true },
     });
+    if (settingsRow) {
+      await prisma.companySettings.update({
+        where: { id: settingsRow.id },
+        data: { shopifyLastSyncAt: new Date() },
+      });
+    }
 
     return {
       ok: true,
