@@ -57,7 +57,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${dmSans.variable} ${jetbrains.variable} h-full`}>
-      <body className="min-h-full bg-paper antialiased">
+      <body className="min-h-dvh bg-paper antialiased">
         <ThemeStyles />
         <Providers>{children}</Providers>
         <PwaRegister />

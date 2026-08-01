@@ -56,7 +56,7 @@ export async function AppTopBar({
   const openCount = pendingCount + overdueCount;
 
   return (
-    <header className="hidden border-b border-line bg-bg-elevated/80 px-6 py-2.5 backdrop-blur-sm lg:block">
+    <header className="hidden border-b border-line/70 bg-transparent px-6 py-2.5 lg:block">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-ink">

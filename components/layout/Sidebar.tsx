@@ -370,7 +370,7 @@ export function Sidebar({
 
   return (
     <>
-      <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-bg-elevated px-3 py-2.5 lg:hidden">
+      <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-line/70 bg-transparent px-3 py-2.5 backdrop-blur-md lg:hidden">
         <button
           type="button"
           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line text-ink"
@@ -401,17 +401,21 @@ export function Sidebar({
         {signOutSlot ? <div className="shrink-0">{signOutSlot}</div> : null}
       </div>
 
-      {open ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-ink/40 lg:hidden"
-          aria-label="Cerrar menú"
-          onClick={() => setOpen(false)}
-        />
-      ) : null}
+      <button
+        type="button"
+        className={`fixed inset-0 z-40 bg-ink/45 transition-opacity duration-300 ease-out lg:hidden ${
+          open
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+        aria-label="Cerrar menú"
+        aria-hidden={!open}
+        tabIndex={open ? 0 : -1}
+        onClick={() => setOpen(false)}
+      />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar text-sidebar-text shadow-xl transition-[width,transform] duration-200 lg:static lg:z-auto lg:translate-x-0 lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar text-sidebar-text shadow-xl transition-[width,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform lg:static lg:z-auto lg:translate-x-0 lg:shadow-none lg:transition-[width] ${
           open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         } ${
           collapsed

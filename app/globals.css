@@ -34,17 +34,39 @@
   --font-mono: var(--font-mono);
 }
 
+html {
+  min-height: 100%;
+  background-color: var(--bg);
+}
+
 body {
-  background: var(--bg);
+  min-height: 100dvh;
+  background-color: var(--bg);
   color: var(--ink);
   font-family: var(--font-display), system-ui, sans-serif;
 }
 
+/* Atmósfera a viewport completo (no se corta al hacer scroll ni en páginas largas). */
 .bg-paper {
   background-color: var(--bg);
   background-image:
-    radial-gradient(ellipse at 12% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 48%),
-    radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 42%);
+    radial-gradient(
+      ellipse 90% 55% at 8% -5%,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 80% 50% at 100% 100%,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse 55% 40% at 70% 25%,
+      color-mix(in srgb, var(--accent) 5%, transparent),
+      transparent 60%
+    );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
 .input {
@@ -56,19 +78,19 @@ body {
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-hover disabled:opacity-50;
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-hover disabled:opacity-50;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-bg-elevated px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-accent-soft/60 disabled:opacity-50;
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-bg-elevated px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-accent-soft/60 disabled:opacity-50;
 }
 
 .btn-danger {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50;
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50;
 }
 
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-ink-muted transition hover:bg-accent-soft/50 hover:text-ink disabled:opacity-50;
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-ink-muted transition hover:bg-accent-soft/50 hover:text-ink disabled:opacity-50;
 }
 
 .card-panel {

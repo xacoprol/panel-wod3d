@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -8,7 +8,15 @@ import { signOut } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-function SignOutForm({ className }: { className?: string }) {
+function SignOutForm({
+  className,
+  children,
+  label = "Cerrar sesión",
+}: {
+  className?: string;
+  children?: ReactNode;
+  label?: string;
+}) {
   return (
     <form
       action={async () => {
@@ -16,10 +24,34 @@ function SignOutForm({ className }: { className?: string }) {
         await signOut({ redirectTo: "/login" });
       }}
     >
-      <button type="submit" className={className ?? "btn-ghost text-xs"}>
-        Cerrar sesión
+      <button
+        type="submit"
+        className={className ?? "btn-ghost text-xs"}
+        aria-label={label}
+        title={label}
+      >
+        {children ?? label}
       </button>
     </form>
+  );
+}
+
+function SignOutIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className="h-6 w-6"
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
   );
 }
 
@@ -42,15 +74,19 @@ export default async function AppLayout({
     session.user?.name?.trim() || session.user?.email?.trim() || null;
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
+    <div className="flex min-h-dvh flex-col lg:flex-row">
       <Suspense fallback={null}>
         <NavigationProgress />
       </Suspense>
       <Sidebar
         companyName={companyName}
-        signOutSlot={<SignOutForm className="btn-ghost px-2 py-1 text-xs" />}
+        signOutSlot={
+          <SignOutForm className="btn-ghost inline-flex h-11 w-11 cursor-pointer items-center justify-center p-0">
+            <SignOutIcon />
+          </SignOutForm>
+        }
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col bg-transparent">
         <AppTopBar
           userLabel={userLabel}
           signOutSlot={<SignOutForm className="btn-ghost px-2 py-1.5 text-xs" />}
