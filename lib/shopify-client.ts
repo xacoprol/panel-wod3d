@@ -4,7 +4,16 @@ const API_VERSION = "2025-01";
 
 export type ShopifyCredentials = {
   shop: string; // xxx.myshopify.com
+  /** Token listo para X-Shopify-Access-Token */
   accessToken: string;
+};
+
+type ShopifyAuthConfig = {
+  shop: string;
+  clientId?: string;
+  clientSecret?: string;
+  /** Token legacy fijo (apps admin antiguas) */
+  staticAccessToken?: string;
 };
 
 export function normalizeShopifyShop(raw: string): string | null {
@@ -15,49 +24,151 @@ export function normalizeShopifyShop(raw: string): string | null {
     .replace(/\/.*$/, "");
   if (!s) return null;
   if (!s.includes(".")) s = `${s}.myshopify.com`;
-  if (!s.endsWith(".myshopify.com")) {
-    // dominio custom → no sirve para Admin API; pedir .myshopify.com
-    if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(s)) {
-      return null;
-    }
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(s)) {
+    return null;
   }
   return s;
 }
 
-/** Credenciales: Ajustes (BD) o variables de entorno. */
-export async function getShopifyCredentials(): Promise<ShopifyCredentials | null> {
+async function loadAuthConfig(): Promise<ShopifyAuthConfig | null> {
   const settings = await prisma.companySettings.findFirst({
-    select: { shopifyShop: true, shopifyAccessToken: true },
+    select: {
+      shopifyShop: true,
+      shopifyClientId: true,
+      shopifyClientSecret: true,
+      shopifyAccessToken: true,
+    },
   });
+
   const shop =
     normalizeShopifyShop(settings?.shopifyShop ?? "") ||
     normalizeShopifyShop(process.env.SHOPIFY_SHOP ?? "");
-  const accessToken =
+  if (!shop) return null;
+
+  const clientId =
+    (settings?.shopifyClientId ?? "").trim() ||
+    (process.env.SHOPIFY_CLIENT_ID ?? "").trim() ||
+    undefined;
+  const clientSecret =
+    (settings?.shopifyClientSecret ?? "").trim() ||
+    (process.env.SHOPIFY_CLIENT_SECRET ?? "").trim() ||
+    undefined;
+  const staticAccessToken =
     (settings?.shopifyAccessToken ?? "").trim() ||
     (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ?? "").trim() ||
-    (process.env.SHOPIFY_ACCESS_TOKEN ?? "").trim();
+    (process.env.SHOPIFY_ACCESS_TOKEN ?? "").trim() ||
+    undefined;
 
-  if (!shop || !accessToken) return null;
-  return { shop, accessToken };
+  if (!clientId && !clientSecret && !staticAccessToken) return null;
+  return { shop, clientId, clientSecret, staticAccessToken };
+}
+
+/** Cache en memoria del token de client_credentials (caduca ~24 h). */
+let cachedToken: { shop: string; token: string; expiresAt: number } | null =
+  null;
+
+async function fetchClientCredentialsToken(
+  shop: string,
+  clientId: string,
+  clientSecret: string
+): Promise<string> {
+  const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+    cache: "no-store",
+  });
+  const text = await res.text();
+  let json: {
+    access_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  } = {};
+  try {
+    json = JSON.parse(text) as typeof json;
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok || !json.access_token) {
+    const detail =
+      json.error_description ||
+      json.error ||
+      text.slice(0, 180) ||
+      res.statusText;
+    if (String(detail).includes("shop_not_permitted")) {
+      throw new Error(
+        "Shopify: client credentials no permitido en esta tienda. La app del Dev Dashboard debe estar en la misma organización e instalada en la tienda."
+      );
+    }
+    throw new Error(`Shopify OAuth ${res.status}: ${detail}`);
+  }
+  const expiresIn = Number(json.expires_in) || 86399;
+  cachedToken = {
+    shop,
+    token: json.access_token,
+    expiresAt: Date.now() + (expiresIn - 120) * 1000,
+  };
+  return json.access_token;
+}
+
+export async function getShopifyCredentials(): Promise<ShopifyCredentials | null> {
+  const cfg = await loadAuthConfig();
+  if (!cfg) return null;
+
+  if (cfg.clientId && cfg.clientSecret) {
+    if (
+      cachedToken &&
+      cachedToken.shop === cfg.shop &&
+      cachedToken.expiresAt > Date.now()
+    ) {
+      return { shop: cfg.shop, accessToken: cachedToken.token };
+    }
+    const accessToken = await fetchClientCredentialsToken(
+      cfg.shop,
+      cfg.clientId,
+      cfg.clientSecret
+    );
+    return { shop: cfg.shop, accessToken };
+  }
+
+  if (cfg.staticAccessToken) {
+    return { shop: cfg.shop, accessToken: cfg.staticAccessToken };
+  }
+
+  return null;
 }
 
 export function shopifyConfiguredHint(settings: {
   shopifyShop: string | null;
+  shopifyClientId?: string | null;
+  shopifyClientSecret?: string | null;
   shopifyAccessToken: string | null;
 }): { ready: boolean; shop: string | null; hasToken: boolean } {
   const shop =
     normalizeShopifyShop(settings.shopifyShop ?? "") ||
     normalizeShopifyShop(process.env.SHOPIFY_SHOP ?? "");
-  const hasToken = Boolean(
+  const hasClientCreds = Boolean(
+    ((settings.shopifyClientId ?? "").trim() ||
+      (process.env.SHOPIFY_CLIENT_ID ?? "").trim()) &&
+      ((settings.shopifyClientSecret ?? "").trim() ||
+        (process.env.SHOPIFY_CLIENT_SECRET ?? "").trim())
+  );
+  const hasStatic = Boolean(
     (settings.shopifyAccessToken ?? "").trim() ||
       (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ?? "").trim() ||
       (process.env.SHOPIFY_ACCESS_TOKEN ?? "").trim()
   );
+  const hasToken = hasClientCreds || hasStatic;
   return { ready: Boolean(shop && hasToken), shop, hasToken };
 }
 
 type ShopifyListOrdersParams = {
-  createdAtMin?: string; // ISO
+  createdAtMin?: string;
   createdAtMax?: string;
   updatedAtMin?: string;
   limit?: number;
@@ -84,26 +195,9 @@ export type ShopifyOrder = {
   }[];
 };
 
-async function shopifyFetch(
-  creds: ShopifyCredentials,
-  path: string
-): Promise<Response> {
-  const url = `https://${creds.shop}/admin/api/${API_VERSION}${path}`;
-  return fetch(url, {
-    headers: {
-      "X-Shopify-Access-Token": creds.accessToken,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
-}
-
-/** Sigue Link rel="next" de Shopify (cursor pagination). */
 function nextPageUrl(linkHeader: string | null): string | null {
   if (!linkHeader) return null;
-  const parts = linkHeader.split(",");
-  for (const part of parts) {
+  for (const part of linkHeader.split(",")) {
     const m = /<([^>]+)>\s*;\s*rel="next"/i.exec(part.trim());
     if (m) return m[1];
   }
@@ -163,7 +257,7 @@ export async function fetchShopifyOrders(
       const body = await res.text().catch(() => "");
       if (res.status === 401 || res.status === 403) {
         throw new Error(
-          "Shopify rechazó el token (401/403). Revisa la app personalizada y el scope read_orders."
+          "Shopify rechazó el acceso (401/403). Revisa Client ID/Secret, que la app esté instalada y el scope read_orders."
         );
       }
       throw new Error(
@@ -182,13 +276,22 @@ export async function testShopifyConnection(
   creds: ShopifyCredentials
 ): Promise<{ ok: true; shopName: string } | { ok: false; error: string }> {
   try {
-    const res = await shopifyFetch(creds, "/shop.json");
+    const res = await fetch(
+      `https://${creds.shop}/admin/api/${API_VERSION}/shop.json`,
+      {
+        headers: {
+          "X-Shopify-Access-Token": creds.accessToken,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      }
+    );
     if (!res.ok) {
       return {
         ok: false,
         error:
           res.status === 401 || res.status === 403
-            ? "Token no válido o sin permisos"
+            ? "Credenciales no válidas o app sin instalar / sin read_orders"
             : `Error Shopify ${res.status}`,
       };
     }

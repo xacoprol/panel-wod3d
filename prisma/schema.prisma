@@ -52,10 +52,13 @@ model CompanySettings {
   reminderSubject    String  @default("Recordatorio: factura {{number}} pendiente")
   reminderBody       String  @default("Hola {{contact}},\n\nLe recordamos que la factura {{number}} por {{remaining}} vence el {{dueDate}}.\n\nUn saludo,\n{{company}}")
 
-  // Shopify Admin API (ingresos marketplace)
-  shopifyShop         String? // tienda.myshopify.com o solo el subdominio
-  shopifyAccessToken  String? // shpat_… (app personalizada); también SHOPIFY_ADMIN_ACCESS_TOKEN en env
-  shopifyLastSyncAt   DateTime?
+  // Shopify Admin API (ingresos marketplace) — Dev Dashboard 2026+
+  shopifyShop          String? // tienda.myshopify.com
+  shopifyClientId      String? // Client ID de la app
+  shopifyClientSecret  String? // Client secret
+  /** Legacy: token fijo shpat_ (apps antiguas). Si hay client id/secret se ignora. */
+  shopifyAccessToken   String?
+  shopifyLastSyncAt    DateTime?
 
   // UX theme (CSS variables)
   themeBg           String @default("#F3F1F8")

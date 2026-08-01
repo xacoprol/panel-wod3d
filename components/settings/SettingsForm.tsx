@@ -345,17 +345,34 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
             Shopify · sync pedidos
           </h2>
-          <p className="text-xs text-ink-muted">
-            App personalizada en Shopify Admin → Settings → Apps → Develop apps →
-            scopes <code className="font-mono">read_orders</code>. Usa el
-            dominio <span className="font-mono">tienda.myshopify.com</span>.
-            También puedes poner <span className="font-mono">SHOPIFY_SHOP</span>{" "}
-            y{" "}
-            <span className="font-mono">SHOPIFY_ADMIN_ACCESS_TOKEN</span> en
-            Vercel.
-          </p>
+          <ol className="list-decimal space-y-1 pl-5 text-xs text-ink-muted">
+            <li>
+              Entra en{" "}
+              <a
+                href="https://dev.shopify.com/dashboard"
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent underline"
+              >
+                Dev Dashboard
+              </a>{" "}
+              (con la misma cuenta de la tienda).
+            </li>
+            <li>
+              <strong>Apps → Create app</strong> → en Versions añade scope{" "}
+              <code className="font-mono">read_orders</code>, App URL{" "}
+              <code className="font-mono">
+                https://shopify.dev/apps/default-app-home
+              </code>{" "}
+              y <strong>Release</strong>.
+            </li>
+            <li>
+              Instala la app en tu tienda (Home → Install) y copia Client ID +
+              Secret en Settings de la app.
+            </li>
+          </ol>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
+            <div className="sm:col-span-2">
               <label className="label" htmlFor="shopifyShop">
                 Tienda (.myshopify.com)
               </label>
@@ -369,30 +386,43 @@ export function SettingsForm({ settings, invoiceSeries, quoteSeries }: Props) {
               />
             </div>
             <div>
-              <label className="label" htmlFor="shopifyAccessToken">
-                Admin API access token
+              <label className="label" htmlFor="shopifyClientId">
+                Client ID
               </label>
               <input
-                id="shopifyAccessToken"
-                name="shopifyAccessToken"
+                id="shopifyClientId"
+                name="shopifyClientId"
+                className="input font-mono"
+                defaultValue={settings.shopifyClientId ?? ""}
+                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="shopifyClientSecret">
+                Client secret
+              </label>
+              <input
+                id="shopifyClientSecret"
+                name="shopifyClientSecret"
                 type="password"
                 className="input font-mono"
                 placeholder={
-                  settings.shopifyAccessToken
-                    ? "•••••••• (dejar vacío para no cambiar)"
-                    : "shpat_…"
+                  settings.shopifyClientSecret
+                    ? "•••••••• (vacío = no cambiar)"
+                    : "shpss_…"
                 }
                 autoComplete="new-password"
               />
-              {settings.shopifyAccessToken ? (
+              {settings.shopifyClientSecret ? (
                 <label className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
                   <input
                     type="checkbox"
-                    name="clearShopifyToken"
+                    name="clearShopifySecret"
                     value="1"
                     className="rounded border-line"
                   />
-                  Borrar token guardado
+                  Borrar secret guardado
                 </label>
               ) : null}
             </div>

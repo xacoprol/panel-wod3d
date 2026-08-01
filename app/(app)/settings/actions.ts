@@ -135,20 +135,25 @@ export async function updateSettings(
         "Tienda Shopify: usa el dominio admin (ej. wod3d.myshopify.com), no el .com público.",
     };
   }
-  const tokenRaw = String(formData.get("shopifyAccessToken") ?? "").trim();
-  const clearToken = formData.get("clearShopifyToken") === "1";
+  const clientIdRaw = String(formData.get("shopifyClientId") ?? "").trim();
+  const clientSecretRaw = String(
+    formData.get("shopifyClientSecret") ?? ""
+  ).trim();
+  const clearSecret = formData.get("clearShopifySecret") === "1";
 
   const existing = await prisma.companySettings.findFirst();
   const shopifyData: {
     shopifyShop: string | null;
-    shopifyAccessToken?: string | null;
+    shopifyClientId: string | null;
+    shopifyClientSecret?: string | null;
   } = {
     shopifyShop: shopNormalized,
+    shopifyClientId: clientIdRaw || null,
   };
-  if (clearToken) {
-    shopifyData.shopifyAccessToken = null;
-  } else if (tokenRaw) {
-    shopifyData.shopifyAccessToken = tokenRaw;
+  if (clearSecret) {
+    shopifyData.shopifyClientSecret = null;
+  } else if (clientSecretRaw) {
+    shopifyData.shopifyClientSecret = clientSecretRaw;
   }
 
   if (existing) {

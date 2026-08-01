@@ -143,7 +143,7 @@ export async function syncShopifyOrders(options: {
     return {
       ok: false,
       error:
-        "Shopify no configurado. Pon tienda + token en Ajustes, o SHOPIFY_SHOP y SHOPIFY_ADMIN_ACCESS_TOKEN en el entorno.",
+        "Shopify no configurado. Pon tienda + Client ID/Secret en Ajustes (Dev Dashboard).",
     };
   }
 

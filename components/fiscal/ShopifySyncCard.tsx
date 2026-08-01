@@ -51,7 +51,16 @@ export function ShopifySyncCard({ ready, shop, lastSyncAt }: Props) {
       <section className="card-panel space-y-2 p-4 sm:p-5">
         <h2 className="form-section-title">Shopify API</h2>
         <p className="text-sm text-ink-muted">
-          Para sincronizar pedidos sin CSV, configura la tienda y el token en{" "}
+          Para sincronizar sin CSV: crea la app en{" "}
+          <a
+            href="https://dev.shopify.com/dashboard"
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent underline"
+          >
+            Dev Dashboard
+          </a>{" "}
+          y pega Client ID + Secret en{" "}
           <Link href="/settings" className="text-accent underline">
             Ajustes
           </Link>

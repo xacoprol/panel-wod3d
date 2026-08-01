@@ -55,6 +55,8 @@ export default async function MarketplaceIncomePage({
     prisma.companySettings.findFirst({
       select: {
         shopifyShop: true,
+        shopifyClientId: true,
+        shopifyClientSecret: true,
         shopifyAccessToken: true,
         shopifyLastSyncAt: true,
       },
@@ -63,6 +65,8 @@ export default async function MarketplaceIncomePage({
 
   const shopifyHint = shopifyConfiguredHint({
     shopifyShop: settings?.shopifyShop ?? null,
+    shopifyClientId: settings?.shopifyClientId ?? null,
+    shopifyClientSecret: settings?.shopifyClientSecret ?? null,
     shopifyAccessToken: settings?.shopifyAccessToken ?? null,
   });
 
