@@ -20,6 +20,7 @@ import {
   isZeroVatOperation,
   parseVatOperationType,
 } from "@/lib/recurring";
+import { Prisma } from "@prisma/client";
 
 export type DocFormState = { error?: string };
 
@@ -40,22 +41,32 @@ async function createInvoiceLines(
   invoiceId: string,
   lines: ReturnType<typeof calculateDocument>["lines"]
 ) {
-  for (const l of lines) {
-    await prisma.invoiceLine.create({
-      data: {
-        invoiceId,
-        sortOrder: l.sortOrder,
-        description: l.description,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        vatRate: l.vatRate,
-        discountPct: l.discountPct,
-        lineSubtotal: l.lineSubtotal,
-        lineVat: l.lineVat,
-        lineTotal: l.lineTotal,
-      },
-    });
-  }
+  if (!lines.length) return;
+  await prisma.invoiceLine.createMany({
+    data: lines.map((l) => ({
+      invoiceId,
+      sortOrder: l.sortOrder,
+      description: l.description,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      vatRate: l.vatRate,
+      discountPct: l.discountPct,
+      lineSubtotal: l.lineSubtotal,
+      lineVat: l.lineVat,
+      lineTotal: l.lineTotal,
+    })),
+  });
+}
+
+function isInvoiceNumberConflict(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code !== "P2002") return false;
+  const target = Array.isArray(err.meta?.target) ? err.meta.target : [];
+  return (
+    target.includes("seriesId") ||
+    target.includes("number") ||
+    target.includes("fullNumber")
+  );
 }
 
 export async function createInvoice(
@@ -79,34 +90,47 @@ export async function createInvoice(
     const issueDate = new Date(String(formData.get("issueDate")));
     const dueRaw = String(formData.get("dueDate") ?? "");
 
-    const num = await allocateInvoiceNumber(prisma, seriesId);
-    const lastInSeries = await prisma.invoice.findFirst({
-      where: { seriesId: num.seriesId },
-      orderBy: { number: "desc" },
-    });
+    let invoice: { id: string } | null = null;
+    const paymentMethod =
+      String(formData.get("paymentMethod") ?? "").trim() || "Transferencia";
+    const notes = String(formData.get("notes") ?? "").trim() || null;
 
-    const invoice = await prisma.invoice.create({
-      data: {
-        seriesId: num.seriesId,
-        seriesPrefix: num.seriesPrefix,
-        number: num.number,
-        fullNumber: num.fullNumber,
-        clientId,
-        issueDate,
-        dueDate: dueRaw ? new Date(dueRaw) : null,
-        status: "PENDIENTE",
-        paymentMethod:
-          String(formData.get("paymentMethod") ?? "").trim() || "Transferencia",
-        notes: String(formData.get("notes") ?? "").trim() || null,
-        vatOperationType,
-        subtotal: totals.subtotal,
-        vatAmount: totals.vatAmount,
-        irpfRate: totals.irpfRate,
-        irpfAmount: totals.irpfAmount,
-        total: totals.total,
-        previousInvoiceId: lastInSeries?.id ?? null,
-      },
-    });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const num = await allocateInvoiceNumber(prisma, seriesId);
+      const lastInSeries = await prisma.invoice.findFirst({
+        where: { seriesId: num.seriesId },
+        orderBy: { number: "desc" },
+      });
+      try {
+        invoice = await prisma.invoice.create({
+          data: {
+            seriesId: num.seriesId,
+            seriesPrefix: num.seriesPrefix,
+            number: num.number,
+            fullNumber: num.fullNumber,
+            clientId,
+            issueDate,
+            dueDate: dueRaw ? new Date(dueRaw) : null,
+            status: "PENDIENTE",
+            paymentMethod,
+            notes,
+            vatOperationType,
+            subtotal: totals.subtotal,
+            vatAmount: totals.vatAmount,
+            irpfRate: totals.irpfRate,
+            irpfAmount: totals.irpfAmount,
+            total: totals.total,
+            previousInvoiceId: lastInSeries?.id ?? null,
+          },
+        });
+        break;
+      } catch (err) {
+        if (!isInvoiceNumberConflict(err) || attempt === 2) throw err;
+      }
+    }
+    if (!invoice) {
+      return { error: "No se pudo reservar un número de factura válido" };
+    }
     await createInvoiceLines(invoice.id, totals.lines);
 
     revalidatePath("/invoices");
@@ -146,7 +170,11 @@ export async function updateInvoice(
     const dueRaw = String(formData.get("dueDate") ?? "");
     const status = String(formData.get("status") ?? existing.status);
 
-    await prisma.invoiceLine.deleteMany({ where: { invoiceId: id } });
+    const previousLines = await prisma.invoiceLine.findMany({
+      where: { invoiceId: id },
+      orderBy: { sortOrder: "asc" },
+    });
+
     await prisma.invoice.update({
       where: { id },
       data: {
@@ -165,7 +193,29 @@ export async function updateInvoice(
         total: totals.total,
       },
     });
-    await createInvoiceLines(id, totals.lines);
+    await prisma.invoiceLine.deleteMany({ where: { invoiceId: id } });
+    try {
+      await createInvoiceLines(id, totals.lines);
+    } catch (lineErr) {
+      await prisma.invoiceLine.deleteMany({ where: { invoiceId: id } });
+      if (previousLines.length) {
+        await prisma.invoiceLine.createMany({
+          data: previousLines.map((line) => ({
+            invoiceId: id,
+            sortOrder: line.sortOrder,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            vatRate: line.vatRate,
+            discountPct: line.discountPct,
+            lineSubtotal: line.lineSubtotal,
+            lineVat: line.lineVat,
+            lineTotal: line.lineTotal,
+          })),
+        });
+      }
+      throw lineErr;
+    }
     await syncInvoicePaymentStatus(id);
 
     revalidatePath("/invoices");

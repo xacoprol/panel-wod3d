@@ -12,6 +12,7 @@ import {
 import { resolveUploadMime } from "@/lib/gemini-client";
 import { parseShopifyIvaSummaryDraft } from "@/lib/shopify-sales-report";
 import type { AmazonTaxReportRow } from "@/lib/amazon-tax-report";
+import { Prisma } from "@prisma/client";
 
 export type ParseMarketplaceIncomeResult =
   | {
@@ -156,6 +157,13 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+function isUniqueMarketplaceIncomeError(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code !== "P2002") return false;
+  const target = Array.isArray(err.meta?.target) ? err.meta.target : [];
+  return target.includes("channel") && target.includes("externalKey");
+}
+
 export async function checkMarketplaceIncomeDuplicates(
   keys: { channel: string; externalKey: string }[]
 ): Promise<{
@@ -244,20 +252,6 @@ export async function importMarketplaceIncomeRows(
         continue;
       }
 
-      const existing = await prisma.marketplaceIncome.findUnique({
-        where: {
-          channel_externalKey: { channel, externalKey },
-        },
-        select: { id: true, externalRef: true },
-      });
-      if (existing) {
-        skipped++;
-        skippedRefs.push(
-          existing.externalRef || row.externalRef || externalKey
-        );
-        continue;
-      }
-
       const issueDate = row.issueDate ? new Date(row.issueDate) : new Date();
       const subtotal = round2(Number(row.subtotal) || 0);
       const vatAmount = round2(Number(row.vatAmount) || 0);
@@ -266,27 +260,33 @@ export async function importMarketplaceIncomeRows(
           ? round2(Number(row.total) || 0)
           : round2(subtotal + vatAmount);
 
-      await prisma.marketplaceIncome.create({
-        data: {
-          channel,
-          issueDate,
-          externalKey,
-          externalRef: row.externalRef?.trim() || null,
-          orderId: row.orderId?.trim() || null,
-          sku: row.sku?.trim() || null,
-          description: row.description?.trim() || null,
-          transactionType: row.transactionType || "SHIPMENT",
-          vatStatus: row.vatStatus || "TAXABLE",
-          vatRate: Number(row.vatRate) || 0,
-          subtotal,
-          vatAmount,
-          total,
-          shipToCountry: row.shipToCountry?.trim() || null,
-          sourceFile: row.sourceFile?.trim() || null,
-          notes: row.notes?.trim() || null,
-        },
-      });
-      imported++;
+      try {
+        await prisma.marketplaceIncome.create({
+          data: {
+            channel,
+            issueDate,
+            externalKey,
+            externalRef: row.externalRef?.trim() || null,
+            orderId: row.orderId?.trim() || null,
+            sku: row.sku?.trim() || null,
+            description: row.description?.trim() || null,
+            transactionType: row.transactionType || "SHIPMENT",
+            vatStatus: row.vatStatus || "TAXABLE",
+            vatRate: Number(row.vatRate) || 0,
+            subtotal,
+            vatAmount,
+            total,
+            shipToCountry: row.shipToCountry?.trim() || null,
+            sourceFile: row.sourceFile?.trim() || null,
+            notes: row.notes?.trim() || null,
+          },
+        });
+        imported++;
+      } catch (err) {
+        if (!isUniqueMarketplaceIncomeError(err)) throw err;
+        skipped++;
+        skippedRefs.push(row.externalRef || externalKey);
+      }
     }
 
     revalidatePath("/fiscal");

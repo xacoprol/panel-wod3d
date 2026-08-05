@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { AmazonTaxReportRow } from "@/lib/amazon-tax-report";
+import { Prisma } from "@prisma/client";
 import {
   fetchShopifyOrders,
   getShopifyCredentials,
@@ -130,6 +131,13 @@ export type ShopifySyncResult = {
 
 export type ShopifySyncError = { ok: false; error: string };
 
+function isUniqueMarketplaceIncomeError(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code !== "P2002") return false;
+  const target = Array.isArray(err.meta?.target) ? err.meta.target : [];
+  return target.includes("channel") && target.includes("externalKey");
+}
+
 export async function syncShopifyOrders(options: {
   /** ISO date YYYY-MM-DD inclusive start (created_at) */
   from: string;
@@ -205,7 +213,10 @@ export async function syncShopifyOrders(options: {
           data,
         });
         updated++;
-      } else {
+        continue;
+      }
+
+      try {
         await prisma.marketplaceIncome.create({
           data: {
             channel: "SHOPIFY",
@@ -214,6 +225,18 @@ export async function syncShopifyOrders(options: {
           },
         });
         created++;
+      } catch (err) {
+        if (!isUniqueMarketplaceIncomeError(err)) throw err;
+        await prisma.marketplaceIncome.update({
+          where: {
+            channel_externalKey: {
+              channel: "SHOPIFY",
+              externalKey: row.externalKey,
+            },
+          },
+          data,
+        });
+        updated++;
       }
     }
 
