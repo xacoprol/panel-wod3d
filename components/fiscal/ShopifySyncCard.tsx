@@ -16,11 +16,8 @@ type Props = {
 
 export function ShopifySyncCard({ ready, shop, lastSyncAt }: Props) {
   const now = useMemo(() => new Date(), []);
-  const defaultMonth = now.getMonth() === 0 ? 12 : now.getMonth();
-  const defaultYear =
-    now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-  const [month, setMonth] = useState(defaultMonth);
-  const [year, setYear] = useState(defaultYear);
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
