@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { InlineSkeleton } from "@/components/ui/PageSkeleton";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/calculations";
@@ -12,6 +12,20 @@ import { deleteExpense } from "./actions";
 
 const categoryLabel = (id: string) =>
   EXPENSE_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+
+function monthKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function monthLabel(date: Date): string {
+  const label = new Intl.DateTimeFormat("es-ES", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 export default async function ExpensesPage({
   searchParams,
@@ -41,6 +55,22 @@ export default async function ExpensesPage({
     skip: meta.skip,
     take: meta.take,
   });
+
+  const monthSections: { key: string; label: string; items: typeof expenses }[] =
+    [];
+  for (const e of expenses) {
+    const key = monthKey(e.issueDate);
+    const last = monthSections[monthSections.length - 1];
+    if (!last || last.key !== key) {
+      monthSections.push({
+        key,
+        label: monthLabel(e.issueDate),
+        items: [e],
+      });
+    } else {
+      last.items.push(e);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -102,68 +132,80 @@ export default async function ExpensesPage({
                 </td>
               </tr>
             ) : (
-              expenses.map((e) => (
-                <tr key={e.id} className="group border-b border-line/50">
-                  <td className="px-4 py-3 text-ink-muted">
-                    {formatDate(e.issueDate)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="font-medium">{e.supplierName}</span>
-                    {e.description ? (
-                      <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted">
-                        {e.description}
-                      </p>
-                    ) : null}
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      {isExpenseIntracom(e.vatOperationType) ? (
-                        <span className="badge bg-accent-soft text-accent">
-                          Intracom
+              monthSections.map((section) => (
+                <Fragment key={section.key}>
+                  <tr className="bg-line/30">
+                    <td
+                      colSpan={8}
+                      className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink"
+                    >
+                      {section.label}
+                    </td>
+                  </tr>
+                  {section.items.map((e) => (
+                    <tr key={e.id} className="group border-b border-line/50">
+                      <td className="px-4 py-3 text-ink-muted">
+                        {formatDate(e.issueDate)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-medium">{e.supplierName}</span>
+                        {e.description ? (
+                          <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted">
+                            {e.description}
+                          </p>
+                        ) : null}
+                        <span className="mt-1 flex flex-wrap gap-1">
+                          {isExpenseIntracom(e.vatOperationType) ? (
+                            <span className="badge bg-accent-soft text-accent">
+                              Intracom
+                            </span>
+                          ) : null}
+                          {!e.deductible ? (
+                            <span className="badge bg-line text-ink-muted">
+                              No deducible
+                            </span>
+                          ) : null}
                         </span>
-                      ) : null}
-                      {!e.deductible ? (
-                        <span className="badge bg-line text-ink-muted">
-                          No deducible
+                      </td>
+                      <td className="hidden px-4 py-3 font-mono text-ink-muted md:table-cell">
+                        {e.invoiceNumber ?? "—"}
+                      </td>
+                      <td className="hidden px-4 py-3 text-ink-muted sm:table-cell">
+                        {categoryLabel(e.category)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {formatCurrency(Number(e.subtotal))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {formatCurrency(Number(e.vatAmount))}
+                        <span className="ml-1 text-xs text-ink-muted">
+                          ({e.vatRate}%)
                         </span>
-                      ) : null}
-                    </span>
-                  </td>
-                  <td className="hidden px-4 py-3 font-mono text-ink-muted md:table-cell">
-                    {e.invoiceNumber ?? "—"}
-                  </td>
-                  <td className="hidden px-4 py-3 text-ink-muted sm:table-cell">
-                    {categoryLabel(e.category)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(Number(e.subtotal))}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(Number(e.vatAmount))}
-                    <span className="ml-1 text-xs text-ink-muted">
-                      ({e.vatRate}%)
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {formatCurrency(Number(e.total))}
-                  </td>
-                  <td className="sticky right-0 z-10 bg-bg-elevated px-2 py-3 group-hover:bg-accent-soft/20 sm:static sm:bg-transparent sm:px-4">
-                    <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
-                      <Link
-                        href={`/fiscal/expenses/${e.id}/edit`}
-                        className="btn-ghost px-2 py-1 text-xs"
-                      >
-                        Editar
-                      </Link>
-                      <form action={deleteExpense.bind(null, e.id)}>
-                        <button
-                          type="submit"
-                          className="btn-ghost px-2 py-1 text-xs text-danger"
-                        >
-                          Borrar
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {formatCurrency(Number(e.total))}
+                      </td>
+                      <td className="sticky right-0 z-10 bg-bg-elevated px-2 py-3 group-hover:bg-accent-soft/20 sm:static sm:bg-transparent sm:px-4">
+                        <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
+                          <Link
+                            href={`/fiscal/expenses/${e.id}/edit`}
+                            className="btn-ghost px-2 py-1 text-xs"
+                          >
+                            Editar
+                          </Link>
+                          <form action={deleteExpense.bind(null, e.id)}>
+                            <button
+                              type="submit"
+                              className="btn-ghost px-2 py-1 text-xs text-danger"
+                            >
+                              Borrar
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))
             )}
           </tbody>

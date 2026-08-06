@@ -4,12 +4,28 @@ import { resolveUploadMime } from "@/lib/gemini-client";
 import {
   geminiConfigured,
   parseExpenseDocument,
+  type ParsedExpenseDraft,
 } from "@/lib/gemini-expense";
+import {
+  isAmazonFeesInvoice,
+  parseAmazonFeesInvoiceCsv,
+} from "@/lib/amazon-fees-invoice";
+import { parseCsv } from "@/lib/amazon-tax-report";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const MAX_BYTES = 12 * 1024 * 1024;
+
+function isCsvUpload(file: File, mime: string): boolean {
+  const name = file.name.toLowerCase();
+  return (
+    name.endsWith(".csv") ||
+    mime === "text/csv" ||
+    mime === "application/csv" ||
+    mime === "text/plain"
+  );
+}
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -17,17 +33,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "No autenticado. Recarga e inicia sesión." },
       { status: 401 }
-    );
-  }
-
-  if (!geminiConfigured()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "Falta la variable GEMINI_API_KEY en el entorno (Vercel / .env local).",
-      },
-      { status: 503 }
     );
   }
 
@@ -44,7 +49,10 @@ export async function POST(request: Request) {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json(
-      { ok: false, error: "Selecciona un PDF o imagen de la factura" },
+      {
+        ok: false,
+        error: "Selecciona un PDF, imagen o CSV de comisiones Amazon",
+      },
       { status: 400 }
     );
   }
@@ -55,14 +63,52 @@ export async function POST(request: Request) {
     );
   }
 
+  const mime = resolveUploadMime(file.type, file.name);
+
   try {
+    if (isCsvUpload(file, mime)) {
+      const text = await file.text();
+      const table = parseCsv(text.replace(/^\uFEFF/, ""));
+      const headers =
+        table[0]?.map((h) => h.trim().replace(/^"|"$/g, "")) ?? [];
+
+      if (!isAmazonFeesInvoice(headers)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "CSV no reconocido. Usa el export de facturas de comisiones Amazon (Fees Invoice: Fees Invoice Number / Fee ID / Total Fees).",
+          },
+          { status: 422 }
+        );
+      }
+
+      const drafts = parseAmazonFeesInvoiceCsv(text, file.name);
+      return NextResponse.json({
+        ok: true,
+        draft: drafts[0],
+        drafts,
+      });
+    }
+
+    if (!geminiConfigured()) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Falta la variable GEMINI_API_KEY en el entorno (Vercel / .env local).",
+        },
+        { status: 503 }
+      );
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
-    const draft = await parseExpenseDocument({
+    const draft: ParsedExpenseDraft = await parseExpenseDocument({
       buffer,
-      mimeType: resolveUploadMime(file.type, file.name),
+      mimeType: mime,
       fileName: file.name,
     });
-    return NextResponse.json({ ok: true, draft });
+    return NextResponse.json({ ok: true, draft, drafts: [draft] });
   } catch (e) {
     const message =
       e instanceof Error ? e.message : "No se pudo leer la factura";

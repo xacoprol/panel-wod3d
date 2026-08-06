@@ -43,6 +43,7 @@ export function resolveUploadMime(
   if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
   if (n.endsWith(".webp")) return "image/webp";
   if (n.endsWith(".gif")) return "image/gif";
+  if (n.endsWith(".csv")) return "text/csv";
   return t || "application/octet-stream";
 }
 

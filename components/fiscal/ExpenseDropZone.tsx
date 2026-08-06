@@ -16,7 +16,8 @@ type Props = {
   compact?: boolean;
 };
 
-const ACCEPT = "application/pdf,image/jpeg,image/png,image/webp,image/gif";
+const ACCEPT =
+  "application/pdf,image/jpeg,image/png,image/webp,image/gif,text/csv,.csv";
 const MAX_FILES = 30;
 const CLIENT_TIMEOUT_MS = 90_000;
 
@@ -25,7 +26,11 @@ function newLocalId() {
 }
 
 type ParseApiResult =
-  | { ok: true; draft: ParsedExpenseDraft }
+  | {
+      ok: true;
+      draft: ParsedExpenseDraft;
+      drafts?: ParsedExpenseDraft[];
+    }
   | { ok: false; error: string };
 
 async function parseExpenseViaApi(file: File): Promise<ParseApiResult> {
@@ -123,11 +128,15 @@ export function ExpenseDropZone({ onParsed, compact }: Props) {
           failures.push(`${file.name}: ${res.error}`);
           continue;
         }
-        ok.push({
-          ...res.draft,
-          localId: newLocalId(),
-          fileName: file.name,
-        });
+        const drafts =
+          res.drafts && res.drafts.length > 0 ? res.drafts : [res.draft];
+        for (const draft of drafts) {
+          ok.push({
+            ...draft,
+            localId: newLocalId(),
+            fileName: file.name,
+          });
+        }
 
         if (i < files.length - 1) {
           await new Promise((r) => setTimeout(r, 600));
@@ -241,8 +250,8 @@ export function ExpenseDropZone({ onParsed, compact }: Props) {
           </p>
         ) : (
           <p className="mt-1 text-xs text-ink-muted">
-            PDF, JPG o PNG · hasta {MAX_FILES} · Gemini rellena · tú revisas y
-            guardas
+            PDF, JPG, PNG o CSV comisiones Amazon · hasta {MAX_FILES} · tú
+            revisas y guardas
           </p>
         )}
         {!parsing ? (
