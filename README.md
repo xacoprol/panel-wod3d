@@ -1,6 +1,6 @@
-# Panel de facturación
+# Vexo
 
-Aplicación web de gestión de facturación para autónomos y pequeñas empresas:
+Panel de facturación para autónomos y pequeñas empresas:
 clientes → presupuestos → facturas → facturas recurrentes.
 
 ## Stack
